@@ -4,14 +4,15 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "tsc -p .",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc -p . --watch",
+    "test": "jest --watch"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "@types/jest": "^29.5.12",
     "ts-jest": "^29.1.2",
+    "ts-node": "^10.9.2",
     "typescript": "^5.4.2"
   }
 }
