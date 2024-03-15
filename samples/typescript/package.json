@@ -10,6 +10,8 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "ts-jest": "^29.1.2",
     "typescript": "^5.4.2"
   }
 }
