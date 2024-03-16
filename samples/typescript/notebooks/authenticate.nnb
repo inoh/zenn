@@ -3,21 +3,14 @@
         {
             "language": "markdown",
             "source": [
-                "## クラス図\n```mermaid\nclassDiagram\n    class UserAccount {\n        +String username\n        +String password\n        +String email\n        +UserProfile profile\n    }\n    class UserProfile {\n        +String firstName\n        +String lastName\n    }\n    class AuthenticationService {\n        +String generateJWT(UserAccount user)\n        +Boolean verifyJWT(String token)\n    }\n    class AuthToken {\n        +String username\n        +Date expiration\n    }\n    UserAccount \"1\" -- \"1\" UserProfile : has\n    AuthenticationService ..> UserAccount : authenticates\n    AuthenticationService -- AuthToken : generates ~> verifies\n```"
+                "## クラス図\n```mermaid\nclassDiagram\n    class UserAccount {\n        +String username\n        +String password\n        +String email\n        +UserProfile profile\n        +create(email: string) UserAccount\n        +updateProfile(firstName: string, lastName: string) UserProfile\n    }\n    class UserProfile {\n        +String firstName\n        +String lastName\n    }\n    class AuthenticationService {\n        +String generateToken(UserAccount user)\n        +Boolean verifyToken(String token)\n    }\n    class AuthToken {\n        +String username\n        +Date expiration\n    }\n    UserAccount \"1\" -- \"1\" UserProfile : has\n    AuthenticationService ..> UserAccount : authenticates\n    AuthenticationService -- AuthToken : generates ~> verifies\n```"
             ],
             "outputs": []
         },
         {
             "language": "typescript",
             "source": [
-                "import jwt from 'jsonwebtoken'\n\nclass UserAccount {\n  username: string\n  password: string\n  email: string\n  profile: UserProfile\n}\nclass UserProfile {\n  firstName: string\n  lastName: string\n}\nclass AuthenticationService {\n  #SECRET_TOKEN = 'your-256-bit-secret'\n\n  generateToken(user: UserAccount): string {\n    const token = jwt.sign({ username: user.username }, this.#SECRET_TOKEN, { expiresIn: '1h' });\n    return token;\n  }\n\n  verifyToken(token: string): boolean {\n    try {\n      jwt.verify(token, this.#SECRET_TOKEN);\n      return true;\n    } catch (error) {\n      return false;\n    }\n  }\n}"
-            ],
-            "outputs": []
-        },
-        {
-            "language": "typescript",
-            "source": [
-                "const user = new UserAccount();\nuser.username = \"testUser\";\nuser.password = \"password123\";\nuser.email = \"test@example.com\";\nuser.profile = new UserProfile();\nuser.profile.firstName = \"Test\";\nuser.profile.lastName = \"User\";\nuser.profile.dob = new Date(\"1990-01-01\");\nuser.profile.address = new Address();\nuser.profile.address.street = \"123 Test St\";\nuser.profile.address.city = \"Test City\";\nuser.profile.address.state = \"Test State\";\nuser.profile.address.zipCode = \"12345\";\n\nconst token = service.generateToken(user);\nconsole.log(`Generated token: ${token}`);"
+                "// https://nodejs.org/api/crypto.html\nimport crypto from 'crypto'\n\n// Generate a key pair\nconst { publicKey, privateKey } = crypto.generateKeyPairSync(\"rsa\", {\n  modulusLength: 2048,\n  publicKeyEncoding: { type: \"spki\", format: \"pem\" },\n  privateKeyEncoding: { type: \"pkcs8\", format: \"pem\" },\n});\n\nconsole.log(\"Public Key:\\n\", publicKey);\nconsole.log(\"Private Key:\\n\", privateKey);"
             ],
             "outputs": [
                 {
@@ -25,7 +18,47 @@
                         {
                             "mime": "application/vnd.code.notebook.stdout",
                             "value": [
-                                "Generated token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InRlc3RVc2VyIiwiaWF0IjoxNzEwNTY3ODUwLCJleHAiOjE3MTA1NzE0NTB9.rAzymXrkFB7BbgZFzHuaUc2d_usb1LGdecmS54JFdNE",
+                                "Public Key:",
+                                " -----BEGIN PUBLIC KEY-----",
+                                "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA59KeHt49fBNJP3qwhtGv",
+                                "pMuqZ7ik4OZUJtWsIjLwBqn3rdqx6WPl5FgijsAaNt+Io8+eB430785YQCwS9Ia8",
+                                "P8cxkhLgyYR2I0uK2BWvbDrKaKU6qSqPGQLQF7amYEy3yXkeGISYmhA4cR0oWKTG",
+                                "djF7bqky+tRlxW52urO2OE488AKF24CSoFa9mDoSPQuWCYRfKVU5xvCgn++PSK72",
+                                "DM1RIpFNrkYYC22IiI+8m+xByIKxFr8us43MpqYHQNKOEM4FfuOENPJpVmM6K7NQ",
+                                "Nmt+MyeLoOPCF4xbY1r1MQlVYI7zCR9kB9jCNcbTLI6PmAb9YAh7COahplg1xMra",
+                                "zQIDAQAB",
+                                "-----END PUBLIC KEY-----",
+                                "",
+                                "Private Key:",
+                                " -----BEGIN PRIVATE KEY-----",
+                                "MIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQDn0p4e3j18E0k/",
+                                "erCG0a+ky6pnuKTg5lQm1awiMvAGqfet2rHpY+XkWCKOwBo234ijz54HjfTvzlhA",
+                                "LBL0hrw/xzGSEuDJhHYjS4rYFa9sOspopTqpKo8ZAtAXtqZgTLfJeR4YhJiaEDhx",
+                                "HShYpMZ2MXtuqTL61GXFbna6s7Y4TjzwAoXbgJKgVr2YOhI9C5YJhF8pVTnG8KCf",
+                                "749IrvYMzVEikU2uRhgLbYiIj7yb7EHIgrEWvy6zjcympgdA0o4QzgV+44Q08mlW",
+                                "Yzors1A2a34zJ4ug48IXjFtjWvUxCVVgjvMJH2QH2MI1xtMsjo+YBv1gCHsI5qGm",
+                                "WDXEytrNAgMBAAECggEAI49uS+PhYJgAw2kJjRS7MbdAI3ryZ8FNJUvfhLt1kEAg",
+                                "Sx3h7qAxUo6mdmlHXCV760zcu+HtsZ9gcC+SlMnaNJpUo0icDK1yBcX/vVfOOfbm",
+                                "t5io3+w0WSzSSODuspTyGEio8i/czL0yOz+ywa4890Jt4bK4rDtKhTeFpOwORqKG",
+                                "9pK8i/aSsInhqgvYpXYMAo92yk+rDD631jjKWB+2KaKA+N6TfC0t+sWhUxnDyEw1",
+                                "7SaHjF1FbIFxOYk9qrU8Vy0EqCuCQCDli21BrWiF7M/Nly3Y4+u8Fk1l39S9GJhp",
+                                "uLnwv9MKbTSxHrstfwi4MG4Mv+Tig5bZgyypOj1zTQKBgQD7I6bA2ga+RZNJmdUf",
+                                "nQ3qW9FUKXdsNYyMk130Z6afVlX4YAyY1AJm4RwGkJNwrDdDFCClm+AO+IIyXKJP",
+                                "WD4onDIl9r1+vk8rVpq9MeUyh4kGD/SFSE2qsYunBPF+sCKuRURIz/tc8F30Sacn",
+                                "1GyNjpKTHHaHXjcFGwpKZ0pCwwKBgQDsT0Gjrf+bLsVVFL1YP4L+WRer/sJ+zonX",
+                                "Q/18ZkooljXi2ONgXawrzl/EAaJu+YLfwWJOokvJ5MkyXeqUSMN63HI3dTLExBk6",
+                                "4lnDeLe/yPe/cKcePPdeHSkP6OaTERi1faVviEQU8DwtdNaAok6Xb73gjOsyRe/h",
+                                "9hMpTHlzLwKBgQDmK6GshObDQn8gaMYlKEtVrPtomGykl1uOh44H72uOA5HdhyJk",
+                                "e4MMCWsnNSB8lso7R1o4jmlHL0ocoDv+XpDxpV5s3vyECiYDQWem2PEIY6IZFUx1",
+                                "T3QnanvlAqnXA9V1RXS1CzGE16Q0vcBex9kJ0E7UV7Tmkln46vR+hrZQAwKBgQCW",
+                                "a7j3rMmZCYOZLfN9GiiTKTkVRbyepXA+s8vGhQJNpZg1hyPtcpMm614wUW4JQBBb",
+                                "yCiAr3SY1mZwBjJNI6gzK+IUhSjE8aKxxeWntM8aaJ2zoczvRZWctekudG1ZTjex",
+                                "R4KoZVAZF/bmZIoqJabrZLi0GF+ah8QzzMTTtBdXBwKBgQC8Kk+E+EQP/3018051",
+                                "dChrcIdfVoaFDL5J+QAYDFhDzWs0uRQrZC9iGmSwIV34zF9QNt/F/vfHhodsgmhF",
+                                "t5leKNhdFx0AYB/fIkhsKKDQI+TwyuZMVht5lOhDDq7ysuacuwaIKIiAInO/vztk",
+                                "P5jXAV3kjPojRggVc0/WgwndKQ==",
+                                "-----END PRIVATE KEY-----",
+                                "",
                                 ""
                             ]
                         }
@@ -36,7 +69,14 @@
         {
             "language": "typescript",
             "source": [
-                "const service = new AuthenticationService()\n\nconst result = service.verifyToken(token);\nconsole.log(`Success: ${result}`);"
+                "import jwt from 'jsonwebtoken'\n\nclass UserAccount {\n  username: string\n  password: string\n  email: string\n  profile: UserProfile\n\n  static create(email: string): UserAccount {\n    const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/\n    if (!emailRegex.test(email)) {\n      throw new Error('無効なメールアドレスです。')\n    }\n\n    const account = new UserAccount()\n    account.#generatePassword()\n    account.username = email.split('@')[0]\n    account.email = email\n    return account\n  }\n\n  updateProfile(firstName: string, lastName: string): UserProfile {\n    this.profile = new UserProfile()\n    this.profile.firstName = firstName\n    this.profile.lastName = lastName\n    return this.profile\n  }\n\n  #generatePassword(): void {\n    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()'\n    let password = ''\n    for (let i = 0; i < 12; i++) {\n      password += characters.charAt(Math.floor(Math.random() * characters.length))\n    }\n    this.password = password\n  }\n}\n\nclass UserProfile {\n  firstName: string\n  lastName: string\n}\n\nclass AuthenticationService {\n  #PRIVATE_KEY = privateKey\n  #PUBLIC_KEY = publicKey\n\n  generateToken(username: string): string {\n    const token = jwt.sign({ username }, this.#PRIVATE_KEY, { algorithm: 'RS256', expiresIn: '1h' })\n    return token\n  }\n\n  verifyToken(token: string): string {\n    const payload = jwt.verify(token, this.#PUBLIC_KEY, { algorithm: 'RS256' })\n    return payload.username\n  }\n}"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "typescript",
+            "source": [
+                "const service = new AuthenticationService()\nconst token = service.generateToken(account.username)\nconsole.log(`Generated token: ${token}`)"
             ],
             "outputs": [
                 {
@@ -44,7 +84,7 @@
                         {
                             "mime": "application/vnd.code.notebook.stdout",
                             "value": [
-                                "Success: true",
+                                "Generated token: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6Imlub3VlIiwiaWF0IjoxNzEwNTgxMTYxLCJleHAiOjE3MTA1ODQ3NjF9.lU9oBIwYwuxRO9sC4PEpHm6xDhas04hf_ZtsD6S1YUsot9zHS8hVLQOvk4mZVqzvR9evZfYcSppim1cndd8-eAzAep01LUqtXzYFRbpccGmM8g2UjMTywdHT-e3WWJdjMAQ8ZZslbM_x13KgndvuI1K_m2Ir8TQ54vzrduoKphhiKaKRLntiCh6JUeGJNZt5oZ8EMRC47fe93fvVNZtr5iinsHiownVJ679Vb9lWuHJMhMOcES5Jq8rc7FoqCz_G8FkS1PMvMTJTH83MI0A9GI4wdWGOk_ACDAHc0r7Rx6bmxOln5HvwgN4m3aeXEgCDIPsBNE9hqD55BfPmIgxuxw",
                                 ""
                             ]
                         }
@@ -55,7 +95,7 @@
         {
             "language": "typescript",
             "source": [
-                "const service = new AuthenticationService()\n\nconst result = service.verifyToken('hoge');\nconsole.log(`Fail: ${result}`);"
+                "const service = new AuthenticationService()\nconst result = service.verifyToken(token)\nconsole.log(`Success: ${result}`)"
             ],
             "outputs": [
                 {
@@ -63,7 +103,36 @@
                         {
                             "mime": "application/vnd.code.notebook.stdout",
                             "value": [
-                                "Fail: false",
+                                "Success: inoue",
+                                ""
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "language": "typescript",
+            "source": [
+                "const service = new AuthenticationService()\ntry {\n  service.verifyToken('hoge');\n} catch (error) {\n  console.log(error)\n}"
+            ],
+            "outputs": [
+                {
+                    "items": [
+                        {
+                            "mime": "application/vnd.code.notebook.stdout",
+                            "value": [
+                                "JsonWebTokenError: jwt malformed",
+                                "    at Object.module.exports [as verify] (/Users/inouehiroyuki/Documents/workspace/zenn/samples/typescript/notebooks/node_modules/jsonwebtoken/verify.js:70:17)",
+                                "    at AuthenticationService.verifyToken (<Cell 3> [54, 78])",
+                                "    at <Cell 6> [3, 9]",
+                                "    at <Cell 6> [10, 46]",
+                                "    at Script.runInContext (node:vm:133:12)",
+                                "    at Script.runInNewContext (node:vm:138:17)",
+                                "    at Object.runInNewContext (node:vm:288:38)",
+                                "    at C (/Users/inouehiroyuki/.cursor/extensions/donjayamanne.typescript-notebook-2.0.6/out/extension/server/index.js:2:113345)",
+                                "    at t.execCode (/Users/inouehiroyuki/.cursor/extensions/donjayamanne.typescript-notebook-2.0.6/out/extension/server/index.js:2:114312)",
+                                "    at k.<anonymous> (/Users/inouehiroyuki/.cursor/extensions/donjayamanne.typescript-notebook-2.0.6/out/extension/server/index.js:2:142156)",
                                 ""
                             ]
                         }
@@ -82,8 +151,8 @@
                         {
                             "mime": "application/vnd.code.notebook.stdout",
                             "value": [
-                                "Header: {\"alg\":\"HS256\",\"typ\":\"JWT\"}",
-                                "Claim: {\"username\":\"testUser\",\"iat\":1710567850,\"exp\":1710571450}",
+                                "Header: {\"alg\":\"RS256\",\"typ\":\"JWT\"}",
+                                "Claim: {\"username\":\"inoue\",\"iat\":1710581161,\"exp\":1710584761}",
                                 ""
                             ]
                         }
