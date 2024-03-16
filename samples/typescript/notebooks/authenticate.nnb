@@ -1,0 +1,95 @@
+{
+    "cells": [
+        {
+            "language": "markdown",
+            "source": [
+                "## クラス図\n```mermaid\nclassDiagram\n    class UserAccount {\n        +String username\n        +String password\n        +String email\n        +UserProfile profile\n    }\n    class UserProfile {\n        +String firstName\n        +String lastName\n    }\n    class AuthenticationService {\n        +String generateJWT(UserAccount user)\n        +Boolean verifyJWT(String token)\n    }\n    class AuthToken {\n        +String username\n        +Date expiration\n    }\n    UserAccount \"1\" -- \"1\" UserProfile : has\n    AuthenticationService ..> UserAccount : authenticates\n    AuthenticationService -- AuthToken : generates ~> verifies\n```"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "typescript",
+            "source": [
+                "import jwt from 'jsonwebtoken'\n\nclass UserAccount {\n  username: string\n  password: string\n  email: string\n  profile: UserProfile\n}\nclass UserProfile {\n  firstName: string\n  lastName: string\n}\nclass AuthenticationService {\n  #SECRET_TOKEN = 'your-256-bit-secret'\n\n  generateToken(user: UserAccount): string {\n    const token = jwt.sign({ username: user.username }, this.#SECRET_TOKEN, { expiresIn: '1h' });\n    return token;\n  }\n\n  verifyToken(token: string): boolean {\n    try {\n      jwt.verify(token, this.#SECRET_TOKEN);\n      return true;\n    } catch (error) {\n      return false;\n    }\n  }\n}"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "typescript",
+            "source": [
+                "const user = new UserAccount();\nuser.username = \"testUser\";\nuser.password = \"password123\";\nuser.email = \"test@example.com\";\nuser.profile = new UserProfile();\nuser.profile.firstName = \"Test\";\nuser.profile.lastName = \"User\";\nuser.profile.dob = new Date(\"1990-01-01\");\nuser.profile.address = new Address();\nuser.profile.address.street = \"123 Test St\";\nuser.profile.address.city = \"Test City\";\nuser.profile.address.state = \"Test State\";\nuser.profile.address.zipCode = \"12345\";\n\nconst token = service.generateToken(user);\nconsole.log(`Generated token: ${token}`);"
+            ],
+            "outputs": [
+                {
+                    "items": [
+                        {
+                            "mime": "application/vnd.code.notebook.stdout",
+                            "value": [
+                                "Generated token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InRlc3RVc2VyIiwiaWF0IjoxNzEwNTY3ODUwLCJleHAiOjE3MTA1NzE0NTB9.rAzymXrkFB7BbgZFzHuaUc2d_usb1LGdecmS54JFdNE",
+                                ""
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "language": "typescript",
+            "source": [
+                "const service = new AuthenticationService()\n\nconst result = service.verifyToken(token);\nconsole.log(`Success: ${result}`);"
+            ],
+            "outputs": [
+                {
+                    "items": [
+                        {
+                            "mime": "application/vnd.code.notebook.stdout",
+                            "value": [
+                                "Success: true",
+                                ""
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "language": "typescript",
+            "source": [
+                "const service = new AuthenticationService()\n\nconst result = service.verifyToken('hoge');\nconsole.log(`Fail: ${result}`);"
+            ],
+            "outputs": [
+                {
+                    "items": [
+                        {
+                            "mime": "application/vnd.code.notebook.stdout",
+                            "value": [
+                                "Fail: false",
+                                ""
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "language": "typescript",
+            "source": [
+                "const payload = token.split('.');\nconst header = Buffer.from(payload[0], 'base64').toString('utf-8');\nconst claim = Buffer.from(payload[1], 'base64').toString('utf-8');\nconsole.log(`Header: ${header}`);\nconsole.log(`Claim: ${claim}`);\n"
+            ],
+            "outputs": [
+                {
+                    "items": [
+                        {
+                            "mime": "application/vnd.code.notebook.stdout",
+                            "value": [
+                                "Header: {\"alg\":\"HS256\",\"typ\":\"JWT\"}",
+                                "Claim: {\"username\":\"testUser\",\"iat\":1710567850,\"exp\":1710571450}",
+                                ""
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
