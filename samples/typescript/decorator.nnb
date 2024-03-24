@@ -1,0 +1,73 @@
+{
+    "cells": [
+        {
+            "language": "typescript",
+            "source": [
+                "const decorate = () => {\n  console.log(\"decorate\");\n  return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {\n    console.log('initial')\n    target.value = 1\n  };\n}\n\nclass ExampleClass {\n  @decorate()\n}"
+            ],
+            "outputs": [
+                {
+                    "items": [
+                        {
+                            "mime": "application/vnd.code.notebook.stdout",
+                            "value": [
+                                "decorate",
+                                "initial",
+                                ""
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "language": "typescript",
+            "source": [
+                "const example1 = new ExampleClass()\nconsole.log(example1.value) // => 1\nexample1.value = 2\nconsole.log(example1.value) // => 2\n\nconst example2 = new ExampleClass()\nconsole.log(example2.value) // => 1"
+            ],
+            "outputs": [
+                {
+                    "items": [
+                        {
+                            "mime": "application/vnd.code.notebook.stdout",
+                            "value": [
+                                "1",
+                                "2",
+                                "1",
+                                ""
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "language": "markdown",
+            "source": [
+                "## クラスのデコレータ"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "typescript",
+            "source": [
+                "const reportableClassDecorator = <T extends { new (...args: any[]): {} }>(constructor: T) => {\n  console.log(2)\n  return class extends constructor {\n    type = \"report\";\n  };\n}\n\nconst configurable = (value: boolean) => {\n  return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {\n    descriptor.configurable = value;\n  };\n}\n\n@reportableClassDecorator\nclass BugReport {\n  private title: string;\n  private _x: number;\n  private _y: number;\n\n  constructor(t: string, x: number, y: number) {\n    this.title = t;\n    this._x = x;\n    this._y = y;\n  }\n\n  @configurable(false)\n  get x() {\n    return this._x;\n  }\n \n  @configurable(false)\n  get y() {\n    return this._y;\n  }\n}\n \nconst bug = new BugReport(\"Needs dark mode\", 1, 2);\nconsole.log(bug.title); // Prints \"Needs dark mode\"\nconsole.log(bug.type); // Prints \"report\""
+            ],
+            "outputs": [
+                {
+                    "items": [
+                        {
+                            "mime": "application/vnd.code.notebook.stdout",
+                            "value": [
+                                "2",
+                                "Needs dark mode",
+                                "report",
+                                ""
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
