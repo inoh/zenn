@@ -7,11 +7,11 @@ published: true
 ---
 
 Fastify で JWT 認証をするための選択肢として [fastify-jwt](https://github.com/fastify/fastify-jwt) というエコシステムがあります。
-今回はこれを使用してようと思います。
+今回はこれを使用してみようと思います。
 
 ## fastify-jwt について
 
-最初に余談にはなりますが更新できなこう書いてあるんですね
+最初に余談にはなりますが公式にこう書いてあるんですね
 
 https://fastify.dev/docs/latest/Guides/Getting-Started/#your-first-plugin
 > As with JavaScript, where everything is an object, with Fastify everything is a plugin.
@@ -20,7 +20,7 @@ JavaScript はすべてがオブジェクトだけど、Fastify は全てプラ�
 
 ということで、fastify-jwt もプラグインとして Fastify に追加します。
 
-```node
+```typescript
 import fastify from 'fastify'
 import jwt from '@fastify/jwt'
 
@@ -32,9 +32,9 @@ server.register(jwt, { secret: 'supersecret' })
 
 ## 使ってみる
 
-プラグインを追加すると fastiry に jwt が追加されるため、あとは好きなペイロードで sign したり verify したりできます。
+プラグインを追加すると fastify に jwt が追加されるため、あとは好きなペイロードで sign したり verify したりできます。
 
-```node
+```typescript
 server.post('/login', () => {
   return server.jwt.sign({ name: 'inoh' })
 })
@@ -42,7 +42,7 @@ server.post('/login', () => {
 
 サーバーを起動して実行してみると JWT が返却されることが確認できます。
 
-```node
+```typescript
 server.listen({ port: 9999 })
 ```
 
@@ -54,9 +54,9 @@ curl --request POST --url http://localhost:9999/login
 ```
 
 次に認証してみます。
-認証は
+request に jwtVerify が拡張されているため、このメソッドを使用して認証します。
 
-```node
+```typescript
 server.get('/me', async (request) => {
   return await request.jwtVerify()
 })
@@ -69,7 +69,7 @@ curl --request GET --url http://localhost:9999/me \
   --header 'authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiaW5vaCIsImlhdCI6MTcxMjQ2NDc2Nn0.MK4j6nXFBneArlfjWE1j0ipmMi-N_8Cee0fKZ5m5lrU'
 # { "name": "inoh", "iat": 1712464766 }
 ```
-
+デフォルトでは exp が設定されていないため有効期限はなさそうです。
 当然 JWT を指定しないとエラーになります。
 
 ```shell
@@ -77,6 +77,6 @@ curl --request GET --url http://localhost:9999/me
 # {"statusCode":401,"code":"FST_JWT_NO_AUTHORIZATION_IN_HEADER","error":"Unauthorized","message":"No Authorization was found in request.headers"}
 ```
 
-HS256 前提で今回試していますが、register を使用してプラグインを追加するだけで簡単に JWT 認証が実現できるため、認証のサービスを作るためのはハードルかなり下がっている感じしますね。
+HS256 前提で今回試していますが、register を使用してプラグインを追加するだけで簡単に JWT 認証が実現できるため、認証のサービスを作るためのハードルはかなり下がっている感じがしますね。
 RS256 前提でサンプルコードも書いてみたので参考にしてみてください！
 https://github.com/inoh/zenn/tree/main/samples/fastify
