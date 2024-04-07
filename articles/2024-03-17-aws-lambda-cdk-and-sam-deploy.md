@@ -1,6 +1,6 @@
 ---
 title: "AWS と SAM を掛け合わせて開発する方法について検討してみる"
-emoji: "😄"
+emoji: "🤔"
 type: "teck"
 topics: ["node","aws"]
 published: true
