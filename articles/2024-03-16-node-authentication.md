@@ -1,6 +1,6 @@
 ---
 title: "node の勉強がてら JWT の認証システムを作ってみた"
-emoji: "😄"
+emoji: "🚀"
 type: "teck"
 topics: ["node"]
 published: true

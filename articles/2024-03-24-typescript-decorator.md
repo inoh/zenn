@@ -1,6 +1,6 @@
 ---
 title: "Typescript で Decorator を使ってみよう！"
-emoji: "😄"
+emoji: "🚀"
 type: "teck"
 topics: ["node"]
 published: true

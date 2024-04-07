@@ -1,6 +1,6 @@
 ---
 title: "AWS の node を CDK deploy する 403 が出たので解決した"
-emoji: "😄"
+emoji: "🐞"
 type: "teck"
 topics: ["aws"]
 published: true
