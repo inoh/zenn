@@ -1,0 +1,4 @@
+langchain-community==0.2.1
+lxml==5.2.2
+beautifulsoup4==4.12.3
+tqdm==4.66.4
