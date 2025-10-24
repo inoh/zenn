@@ -3,7 +3,7 @@ title: "Claude Code のスキル機能完全ガイド：モジュール型機能
 emoji: "🛠️"
 type: "tech"
 topics: ["ClaudeCode", "AI", "開発効率化", "Skills"]
-published: false
+published: true
 ---
 
 Claude Code のスキル機能は、Claude の能力を特定のタスクに特化させるためのモジュール型拡張機能です。本記事では、スキル機能の基本概念から実践的な活用方法まで、包括的に解説します。
