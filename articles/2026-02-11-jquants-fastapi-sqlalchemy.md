@@ -3,7 +3,7 @@ title: "J-Quants API を FastAPI + SQLAlchemy で実運用する際のハマり�
 emoji: "📈"
 type: "tech"
 topics: ["jquants", "fastapi", "sqlalchemy", "python", "株式投資"]
-published: false
+published: true
 ---
 
 ## はじめに
@@ -21,7 +21,7 @@ J-Quants API は東証上場銘柄の株価・財務データを取得できる 
 
 ### J-Quants API のレート制限
 
-J-Quants API（プレミアムプラン）のレート制限は **1分あたり30リクエスト** です。これを超えると `429 Too Many Requests` が返ってきます。全銘柄のデータを一括取得する場合はあまり問題になりませんが、銘柄個別のバックフィル処理では簡単に上限に達します。
+J-Quants API（Light）のレート制限は **1分あたり60リクエスト** です。これを超えると `429 Too Many Requests` が返ってきます。全銘柄のデータを一括取得する場合はあまり問題になりませんが、銘柄個別のバックフィル処理では簡単に上限に達します。
 
 ### クライアントラッパーの実装
 
@@ -317,4 +317,4 @@ def _compute_annual_dividend(fs, date_ratios):
 
 ---
 
-本記事で紹介したコードは、日本株分析サービス「kabu」プロジェクトの一部です。FastAPI + Next.js 15 でテクニカル指標表示・ML 騰落予測・銘柄スクリーニングまで実装しています。
+本記事で紹介したコードは、FastAPI + Next.js 15 でテクニカル指標表示・ML 騰落予測・銘柄スクリーニングまで実装しています。
