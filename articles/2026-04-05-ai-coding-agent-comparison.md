@@ -53,18 +53,18 @@ codex
 
 ### GitHub Copilot（GitHub / Microsoft）
 
-GitHub が提供する AI コーディング支援ツールです。CLI 拡張とコーディングエージェントの 2 つの形態があります。
+GitHub が提供する AI コーディング支援ツールです。ターミナルエージェントと GitHub 上のコーディングエージェントの 2 つの形態があります。
 
 ```bash
-# CLI 拡張のインストール
-gh extension install github/gh-copilot
+# CLI のインストール
+npm install -g @github/copilot
 
-# コマンド提案
-gh copilot suggest "find large files in this repo"
+# 起動
+copilot
 ```
 
 **2 つの形態**:
-- **Copilot in the CLI**: 自然言語からシェルコマンドを生成・説明
+- **Copilot CLI**: ターミナルで動作する AI コーディングエージェント。モデル選択（`/model`）、並列実行（`/fleet`）、セッション継続（`/resume`）、VS Code 連携（`/IDE`）、MCP 対応など、本格的なエージェント機能を備える
 - **Copilot Coding Agent**: GitHub Issue を割り当てると、自律的にコードを書いて PR を作成
 
 ### Cursor Agent（Cursor）
@@ -81,7 +81,7 @@ VS Code フォークの AI エディタ Cursor に内蔵されたエージェン
 
 | 機能 | Claude Code | Codex CLI | Copilot | Cursor Agent |
 |------|:-----------:|:---------:|:-------:|:------------:|
-| **動作環境** | ターミナル | ターミナル | GitHub / CLI | IDE（VS Code フォーク） |
+| **動作環境** | ターミナル | ターミナル | ターミナル / GitHub | IDE（VS Code フォーク） |
 | **自律的なコード編集** | ○ | ○ | ○（Coding Agent） | ○ |
 | **コマンド実行** | ○ | ○（サンドボックス内） | △（提案のみ） | ○ |
 | **複数ファイル編集** | ○ | ○ | ○ | ○ |
@@ -99,7 +99,7 @@ VS Code フォークの AI エディタ Cursor に内蔵されたエージェン
 
 **Claude Code** と **Codex CLI** はどちらもターミナルネイティブです。SSH 越しやリモートサーバーでも動作し、IDE に依存しません。一方で Claude Code は VS Code / JetBrains 向けの拡張も提供しています。
 
-**Copilot Coding Agent** は GitHub 上で完結します。Issue を割り当てるだけで動くため、ローカル環境のセットアップが不要です。ただし CLI 版（`gh copilot`）はコマンド提案に特化しており、自律的なコーディングはできません。
+**Copilot** はターミナルと GitHub の両方で動作します。Copilot CLI はターミナルベースの本格的なエージェントで、Claude Code や Codex CLI と同カテゴリのツールです。Copilot Coding Agent は GitHub 上で完結し、Issue を割り当てるだけで PR が作成されます。
 
 **Cursor Agent** は IDE 内蔵のため、エディタの機能（シンタックスハイライト、インテリセンス、デバッガ）とシームレスに連携します。ターミナルだけで作業したい人には向きません。
 
@@ -194,7 +194,7 @@ Issue を割り当てるだけで PR が上がってくるワークフローは�
 
 | | Claude Code | Codex CLI | Copilot | Cursor Agent |
 |---|---|---|---|---|
-| **一言で表すと** | 万能ターミナルエージェント | 安全なオープンソースエージェント | GitHub ネイティブエージェント | IDE 統合エージェント |
+| **一言で表すと** | 万能ターミナルエージェント | 安全なオープンソースエージェント | GitHub ネイティブ万能エージェント | IDE 統合エージェント |
 | **最大の強み** | 拡張性（MCP, Skills, Hooks） | サンドボックスの安全性 | GitHub ワークフロー統合 | IDE との深い統合 |
 | **向いている人** | ターミナル派・パワーユーザー | セキュリティ重視・OSS 志向 | GitHub 中心のチーム開発 | GUI エディタ派 |
 
