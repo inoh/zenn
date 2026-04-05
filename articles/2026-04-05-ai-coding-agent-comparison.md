@@ -87,7 +87,7 @@ VS Code フォークの AI エディタ Cursor に内蔵されたエージェン
 | **複数ファイル編集** | ○ | ○ | ○ | ○ |
 | **サンドボックス** | × | ○ | ○（GitHub Actions VM） | ○（Background Agent） |
 | **バックグラウンド実行** | ○（サブエージェント） | △ | ○（Coding Agent） | ○（Background Agent） |
-| **Web 検索** | ○ | × | × | △ |
+| **Web 検索** | ○ | △（設定で有効化可） | × | △ |
 | **画像入力** | ○ | ○ | △ | ○ |
 | **プラグイン / 拡張** | ○（MCP, Skills, Plugins） | △ | ○（Extensions） | ○（MCP） |
 | **オープンソース** | × | ○ | × | × |
