@@ -12,6 +12,10 @@ published: true
 
 本記事では、インストール数や評価をもとにした**人気プラグイン TOP 5** と、**カテゴリ別おすすめプラグイン**、さらに開発を加速させる**おすすめ MCP サーバー**を紹介します。
 
+:::message
+本記事のプラグイン情報（名称・インストール数・機能詳細）は 2026 年 4 月時点の筆者調べです。最新情報は `claude plugin search` や公式ドキュメントでご確認ください。MCP サーバーのパッケージ名は npm レジストリで確認済みです。
+:::
+
 ## プラグインとは
 
 Claude Code プラグインは、Claude の機能を拡張するパッケージです。内部的には以下の仕組みを組み合わせて動作します。
@@ -170,11 +174,13 @@ claude plugin add connect-apps
 > Slack の #dev チャンネルに今日のPR一覧を投稿して
 ```
 
+---
+
 ## カテゴリ別おすすめプラグイン
 
 ### コード品質: AgentLint
 
-プロジェクト固有のコーディング規約を学習し、リアルタイムで指摘してくれるリンタープラグインです。ESLint や Prettier では拾えない「チーム固有のルール」を自然言語で定義できるのが強みです。
+ESLint や Prettier では拾えない「チーム固有のルール」を自然言語で定義できるリンタープラグインです。プロジェクトの既存コードからコーディング規約を自動学習するため、ルール定義の手間が省けます。
 
 ```bash
 claude plugin add agentlint
@@ -184,6 +190,8 @@ claude plugin add agentlint
 > /agentlint init  # プロジェクトのコード規約を学習
 ```
 
+**おすすめの理由**: 既存のリンターとの差別化が明確で、チーム内のコードスタイル統一に即効性があります。
+
 ### メモリ: Claude-Mem
 
 会話をまたいで情報を永続化する拡張メモリプラグインです。プロジェクトの設計判断の経緯やチームの意思決定をベクトル検索可能な形式で保存し、将来の会話で自動的に参照します。
@@ -191,6 +199,8 @@ claude plugin add agentlint
 ```bash
 claude plugin add claude-mem
 ```
+
+**おすすめの理由**: Claude Code 標準のメモリ機能（`~/.claude/` 配下のファイルベース）を超えて、大量のコンテキストを効率的に管理できます。長期プロジェクトで特に威力を発揮します。
 
 ### フロントエンド: frontend-design
 
@@ -200,17 +210,23 @@ Figma デザインやスクリーンショットからフロントエンドコ�
 claude plugin add frontend-design
 ```
 
+**おすすめの理由**: デザイナーとエンジニアの間のハンドオフ工数を大幅に削減します。Figma MCP サーバーと組み合わせることで、デザインファイルから直接コンポーネントを生成できます。
+
 ### 総合拡張: Superpowers
 
-複数の便利機能をまとめたオールインワンプラグインです。ファイルの一括リネーム、依存関係の自動更新、デッドコード検出、パフォーマンスプロファイリングなど、日常的に使う機能が揃っています。
+ファイルの一括リネーム、依存関係の自動更新、デッドコード検出、パフォーマンスプロファイリングなど、日常的に使う便利機能をまとめたオールインワンプラグインです。
 
 ```bash
 claude plugin add superpowers
 ```
 
+**おすすめの理由**: 個別にツールを入れるよりも管理が楽で、1 つのプラグインで幅広いユースケースをカバーできます。
+
 ## おすすめ MCP サーバー
 
 プラグインとは別に、MCP（Model Context Protocol）サーバーを設定することで Claude Code の能力をさらに拡張できます。
+
+MCP サーバーの設定は、プロジェクトルートの `.claude/settings.json` に記述します。チーム共有の場合はこのファイルをリポジトリにコミットし、個人設定の場合は `~/.claude/settings.json` に記述してください。
 
 ### Context7 — ライブラリドキュメント参照
 
@@ -236,7 +252,7 @@ claude plugin add superpowers
   "mcpServers": {
     "playwright": {
       "command": "npx",
-      "args": ["-y", "@anthropic-ai/mcp-playwright"]
+      "args": ["-y", "@playwright/mcp"]
     }
   }
 }
@@ -278,7 +294,7 @@ Figma のデザインデータを直接読み取り、コンポーネントコ�
 }
 ```
 
-### PostgreSQL / SQLite — DB 操作
+### PostgreSQL — DB 操作
 
 データベースに直接クエリを発行し、スキーマの確認やデータの調査を Claude Code 内で行えます。
 
@@ -320,43 +336,55 @@ Sentry のエラーログを Claude Code に取り込み、スタックトレー
 
 個人開発でスピードを重視するなら、この 3 つから始めましょう。
 
-| プラグイン | 理由 |
-|-----------|------|
-| **feature-dev** | 開発フローを構造化して抜け漏れを防止 |
-| **ship** | PR 作成の手間を大幅に削減 |
-| **Context7**（MCP） | 最新ドキュメント参照でハルシネーションを抑制 |
+| 種別 | 名前 | 理由 |
+|------|------|------|
+| プラグイン | **feature-dev** | 開発フローを構造化して抜け漏れを防止 |
+| プラグイン | **ship** | PR 作成の手間を大幅に削減 |
+| MCP サーバー | **Context7** | 最新ドキュメント参照でハルシネーションを抑制 |
 
 ```bash
+# プラグイン
 claude plugin add feature-dev ship
+
+# MCP サーバー（.claude/settings.json に追記）
+# Context7 の設定は「おすすめ MCP サーバー」セクションを参照
 ```
 
 ### チーム開発向け
 
 チーム開発では品質管理と情報共有が重要です。
 
-| プラグイン | 理由 |
-|-----------|------|
-| **code-review** | 並列レビューで品質を底上げ |
-| **agentlint** | チーム固有のコーディング規約を自動チェック |
-| **connect-apps** | Slack・Jira 等との連携でコミュニケーションを効率化 |
-| **GitHub MCP** | PR・Issue 管理を Claude Code 内で完結 |
+| 種別 | 名前 | 理由 |
+|------|------|------|
+| プラグイン | **code-review** | 並列レビューで品質を底上げ |
+| プラグイン | **agentlint** | チーム固有のコーディング規約を自動チェック |
+| プラグイン | **connect-apps** | Slack・Jira 等との連携でコミュニケーションを効率化 |
+| MCP サーバー | **GitHub MCP** | PR・Issue 管理を Claude Code 内で完結 |
 
 ```bash
+# プラグイン
 claude plugin add code-review agentlint connect-apps
+
+# MCP サーバー（.claude/settings.json に追記）
+# GitHub MCP の設定は「おすすめ MCP サーバー」セクションを参照
 ```
 
 ### セキュリティ重視向け
 
 セキュリティが最優先のプロジェクト向けの構成です。
 
-| プラグイン | 理由 |
-|-----------|------|
-| **security-sweep** | OWASP Top 10 準拠のセキュリティスキャン |
-| **code-review** | セキュリティ軸のレビューで脆弱性を早期検出 |
-| **Sentry MCP** | 本番エラーの即座な原因特定 |
+| 種別 | 名前 | 理由 |
+|------|------|------|
+| プラグイン | **security-sweep** | OWASP Top 10 準拠のセキュリティスキャン |
+| プラグイン | **code-review** | セキュリティ軸のレビューで脆弱性を早期検出 |
+| MCP サーバー | **Sentry MCP** | 本番エラーの即座な原因特定 |
 
 ```bash
+# プラグイン
 claude plugin add security-sweep code-review
+
+# MCP サーバー（.claude/settings.json に追記）
+# Sentry MCP の設定は「おすすめ MCP サーバー」セクションを参照
 ```
 
 ## まとめ
