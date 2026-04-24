@@ -1,408 +1,350 @@
 ---
-title: "Claude Code プラグイン人気ランキング 2026 — いま入れるべきおすすめプラグイン & MCP サーバー"
+title: "Claude Code プラグインおすすめ 2026 — 公式マーケットプレイスから入れるべきプラグイン & MCP サーバー"
 emoji: "🔌"
 type: "tech"
-topics: ["claudecode", "plugin", "ai", "mcp"]
+topics: ["claudecode", "plugin", "mcp", "ai"]
 published: true
 ---
 
 ## はじめに
 
-2026 年 4 月現在、Claude Code のプラグインエコシステムは急速に拡大しています。公式プラグインは **123 個**、コミュニティ製を含めると **9,000 以上**のプラグインが公開されており、Claude Code の機能を自在に拡張できる環境が整いました。
+Claude Code のプラグインエコシステムが急速に拡大しています。2026 年 4 月時点で、公式マーケットプレイス（[claude-plugins-official](https://github.com/anthropics/claude-plugins-official)）には **160 個**のプラグインが登録されています。うち **32 個が Anthropic 製**、残りはサードパーティ製です。
 
-本記事では、インストール数や評価をもとにした**人気プラグイン TOP 5** と、**カテゴリ別おすすめプラグイン**、さらに開発を加速させる**おすすめ MCP サーバー**を紹介します。
+しかし、数が多すぎて「結局どれを入れればいいの？」と迷う方も多いのではないでしょうか。
 
-:::message
-本記事のプラグイン情報（名称・インストール数・機能詳細）は 2026 年 4 月時点の筆者調べです。最新情報は `claude plugin search` や公式ドキュメントでご確認ください。MCP サーバーのパッケージ名は npm レジストリで確認済みです。
-:::
+この記事では、公式マーケットプレイスの中身を実際に確認した上で、**おすすめのプラグイン**と **MCP サーバー系プラグイン**を紹介します。
 
-## プラグインとは
+## プラグインの基本
 
-Claude Code プラグインは、Claude の機能を拡張するパッケージです。内部的には以下の仕組みを組み合わせて動作します。
+### プラグインとは
 
-- **スキル**: 特定ドメインの専門知識を提供する再利用可能な指示セット
-- **フック**: ツール実行の前後にシェルコマンドを自動実行
-- **MCP サーバー**: 外部ツールやサービスとの連携
-- **エージェント**: 専門タスクを隔離されたコンテキストで処理するサブエージェント
+Claude Code プラグインは、**スキル・フック・MCP サーバー・エージェント**をパッケージ化して配布する仕組みです。プラグインをインストールするだけで、新しいスラッシュコマンドやツールが使えるようになります。
 
-これらを 1 つのパッケージにまとめることで、`claude plugin add` コマンド一発でインストール・設定が完了します。
+### インストール方法
 
 ```bash
-# プラグインのインストール
-claude plugin add <plugin-name>
+# 公式マーケットプレイスからインストール
+claude plugin install <プラグイン名>
 
-# インストール済みプラグインの一覧
+# 特定のマーケットプレイスを指定する場合
+claude plugin install <プラグイン名>@<マーケットプレイス名>
+
+# インストール済みプラグインの確認
 claude plugin list
 
-# プラグインの削除
-claude plugin remove <plugin-name>
+# プラグインの更新
+claude plugin update <プラグイン名>
+
+# アンインストール
+claude plugin uninstall <プラグイン名>
 ```
 
-## 人気プラグイン TOP 5
-
-### 1. feature-dev — 構造化ワークフロー
-
-**インストール数: 89,000+**
-
-機能開発を 7 つのフェーズに分割し、段階的に進める構造化ワークフローを提供します。要件定義からテスト・PR 作成まで一貫した流れで開発を進められるため、タスクの抜け漏れを防げます。
+公式マーケットプレイス以外のプラグインを使いたい場合は、マーケットプレイスの追加も可能です。
 
 ```bash
-claude plugin add feature-dev
+# マーケットプレイスを追加（GitHub リポジトリから）
+claude plugin marketplace add <owner>/<repo>
+
+# マーケットプレイス一覧
+claude plugin marketplace list
 ```
 
-**7 つのフェーズ**:
+### コマンドの名前空間に注意
 
-1. **要件分析** — Issue やユーザーストーリーから要件を抽出
-2. **設計** — アーキテクチャと実装方針を策定
-3. **実装** — コードを生成・編集
-4. **テスト** — ユニットテスト・統合テストを作成・実行
-5. **レビュー** — コード品質を自己チェック
-6. **ドキュメント** — 変更内容を文書化
-7. **PR 作成** — ブランチ作成から PR 提出まで自動化
-
-**使い方の例**:
-
-```
-> /feature-dev "ユーザー認証にOAuth2.0を追加"
-```
-
-各フェーズの完了時に確認を求めてくれるため、意図しない変更が入りにくいのが魅力です。
-
----
-
-### 2. code-review — マルチエージェント並列レビュー
-
-**インストール数: 72,000+**
-
-複数のサブエージェントを並列起動し、異なる観点からコードレビューを実行します。セキュリティ・パフォーマンス・可読性・テストカバレッジの 4 軸で同時にレビューが走るため、人力レビューでは見逃しがちな問題も検出できます。
+プラグイン経由でインストールしたコマンドは、**名前空間（namespace）が付与**されます。形式は `/<プラグイン名>:<コマンド名>` です。
 
 ```bash
-claude plugin add code-review
+# プラグイン経由のコマンド
+/feature-dev:feature-dev
+/code-review:code-review
+/commit-commands:commit
+
+# .claude/commands/ に直接置いた場合（名前空間なし）
+/feature-dev
 ```
 
-**レビュー軸**:
+これは複数のプラグインが同名のコマンドを持つ場合の衝突を防ぐ仕組みです。公式の README では短縮形で `/feature-dev` のように記載されていることがありますが、**実際にプラグインとしてインストールすると `/<プラグイン名>:<コマンド名>` の形式**になります。
 
-| 軸 | チェック内容 |
-|---|---|
-| セキュリティ | インジェクション、認証・認可の不備、機密情報の漏洩 |
-| パフォーマンス | N+1 クエリ、不要な再レンダリング、メモリリーク |
-| 可読性 | 命名規則、関数の複雑度、コメントの過不足 |
-| テスト | カバレッジ、エッジケースの網羅性、テストの信頼性 |
+:::message
+Claude Code 会話中に `/` を入力するとコマンド補完が表示されるので、正確なコマンド名はそこで確認できます。
+:::
 
-**使い方の例**:
+## おすすめプラグイン — Anthropic 製
 
-```
-> /code-review --diff HEAD~3
-```
+### feature-dev — 構造化された機能開発ワークフロー
 
----
-
-### 3. security-sweep — OWASP Top 10 セキュリティスキャン
-
-**インストール数: 58,000+**
-
-OWASP Top 10 に基づくセキュリティスキャンを実行します。静的解析だけでなく、依存パッケージの脆弱性チェックやシークレットの検出も行います。
+機能開発を **7 つのフェーズ**に構造化し、Claude が各フェーズを順に実行するプラグインです。Anthropic の Sid Bidasaria 氏が作成。
 
 ```bash
-claude plugin add security-sweep
+# インストール
+claude plugin install feature-dev
+
+# 使い方
+/feature-dev:feature-dev ユーザー認証に OAuth を追加
 ```
 
-**スキャン対象**:
+**7 フェーズ:**
 
-- **コード**: SQL インジェクション、XSS、SSRF、パストラバーサル等
-- **依存関係**: CVE データベースとの照合、ライセンス違反チェック
-- **シークレット**: API キー、パスワード、トークンのハードコード検出
-- **設定ファイル**: CORS 設定、CSP ヘッダー、暗号化設定の検証
+1. **Discovery（要件整理）** — 要求の明確化、制約の特定
+2. **Codebase Exploration（コード調査）** — `code-explorer` エージェントが並列で既存コードを分析
+3. **Clarifying Questions（質問）** — 曖昧な点をすべて洗い出し、回答を待ってから次へ
+4. **Architecture Design（設計）** — `code-architect` エージェントが複数の実装方針を提案し、比較
+5. **Implementation（実装）** — ユーザーの承認後にコーディング開始
+6. **Quality Review（レビュー）** — `code-reviewer` エージェントが並列でコード品質をチェック（信頼度 80 以上のみ報告）
+7. **Summary（まとめ）** — 変更内容・決定事項・次のステップを記録
 
-**使い方の例**:
+「いきなりコードを書き始める」のではなく、**設計を先に固めてから実装に入る**のがポイントです。エージェントが自動で探索・設計・レビューを並列実行するため、複雑な機能追加で威力を発揮します。
 
-```
-> /security-sweep --severity high
-```
+### code-review — マルチエージェント並列コードレビュー
 
-重要度別にフィルタリングでき、CI/CD パイプラインへの組み込みも容易です。
-
----
-
-### 4. ship — PR 自動化パイプライン
-
-**インストール数: 45,000+**
-
-コミット・ブランチ作成・PR 提出・レビュー対応までの一連の作業を自動化します。コミットメッセージの生成、PR テンプレートへの記入、レビューコメントへの対応まで Claude が処理します。
+PR を **4 つの専門エージェントが並列でレビュー**するプラグインです。Anthropic の Boris Cherny 氏が作成。
 
 ```bash
-claude plugin add ship
+# インストール
+claude plugin install code-review
+
+# 使い方
+/code-review:code-review
 ```
 
-**主な機能**:
+**4 つのエージェント:**
 
-- Conventional Commits 準拠のコミットメッセージ自動生成
-- PR 本文の自動作成（変更概要・テスト計画・スクリーンショット）
-- レビューコメントへの自動応答と修正提案
-- CI 失敗時の自動診断と修正
+| # | 担当 | 内容 |
+|---|------|------|
+| 1-2 | CLAUDE.md 準拠 | プロジェクトのガイドラインに沿っているか |
+| 3 | バグ検出 | 変更箇所の明らかなバグ（既存の問題は対象外） |
+| 4 | 履歴分析 | git blame/history から文脈を読み取る |
 
-**使い方の例**:
+各 issue に **0〜100 の信頼度スコア**を付与し、デフォルトで **80 未満はフィルタ**されます。これにより false positive を大幅に削減しています。
 
-```
-> /ship "認証機能のバグ修正"
-```
+レビュー結果は GitHub PR にコメントとして投稿されます。すでにレビュー済み・ドラフト・クローズ済みの PR は自動でスキップされます。
 
----
+### commit-commands — Git ワークフローの自動化
 
-### 5. connect-apps — 500+ SaaS 連携
-
-**インストール数: 38,000+**
-
-Slack・Notion・Jira・Linear・Google Workspace など 500 以上の SaaS と Claude Code を連携させるプラグインです。MCP サーバーを内部的に管理し、複雑な設定なしで外部サービスにアクセスできます。
+コミット・プッシュ・PR 作成を簡単なコマンドで実行できるプラグインです。
 
 ```bash
-claude plugin add connect-apps
+# インストール
+claude plugin install commit-commands
+
+# 使い方
+/commit-commands:commit        # 変更を分析してコミット
+/commit-commands:commit-push-pr  # コミット→プッシュ→PR作成を一気に
+/commit-commands:clean_gone    # マージ済みブランチのクリーンアップ
 ```
 
-**対応サービスの例**:
+`/commit-commands:commit` は、staged/unstaged の変更を分析し、リポジトリのコミットスタイルに合ったメッセージを自動生成します。
 
-| カテゴリ | サービス |
-|---------|---------|
-| コミュニケーション | Slack, Discord, Microsoft Teams |
-| プロジェクト管理 | Jira, Linear, Asana, Notion |
-| ドキュメント | Google Docs, Confluence |
-| モニタリング | Datadog, PagerDuty, Sentry |
+### frontend-design — AI っぽくないフロントエンドデザイン
 
-**使い方の例**:
-
-```
-> Slack の #dev チャンネルに今日のPR一覧を投稿して
-```
-
----
-
-## カテゴリ別おすすめプラグイン
-
-### コード品質: AgentLint
-
-ESLint や Prettier では拾えない「チーム固有のルール」を自然言語で定義できるリンタープラグインです。プロジェクトの既存コードからコーディング規約を自動学習するため、ルール定義の手間が省けます。
+Claude がフロントエンドのコードを書く際に、**汎用的な「AI っぽい」デザインを避けて個性的な UI を生成**するスキルプラグインです。
 
 ```bash
-claude plugin add agentlint
+# インストール
+claude plugin install frontend-design
 ```
 
-```
-> /agentlint init  # プロジェクトのコード規約を学習
-```
+このプラグインはスラッシュコマンドではなく**スキル**として動作します。インストールするだけで、フロントエンド関連のタスクを依頼した際に Claude が自動的にこのスキルを参照し、以下のような品質でコードを生成します。
 
-**おすすめの理由**: 既存のリンターとの差別化が明確で、チーム内のコードスタイル統一に即効性があります。
+- 大胆なタイポグラフィ・カラーパレット
+- インパクトのあるアニメーション
+- コンテキストに応じた実装判断
 
-### メモリ: Claude-Mem
+### security-guidance — セキュリティ警告フック
 
-会話をまたいで情報を永続化する拡張メモリプラグインです。プロジェクトの設計判断の経緯やチームの意思決定をベクトル検索可能な形式で保存し、将来の会話で自動的に参照します。
+ファイル編集時にセキュリティリスクを**自動で警告するフック**プラグインです。
 
 ```bash
-claude plugin add claude-mem
+# インストール
+claude plugin install security-guidance
 ```
 
-**おすすめの理由**: Claude Code 標準のメモリ機能（`~/.claude/` 配下のファイルベース）を超えて、大量のコンテキストを効率的に管理できます。長期プロジェクトで特に威力を発揮します。
+このプラグインは**コマンドではなくフック**として動作します。`Edit` / `Write` などのツール使用前に Python スクリプトが実行され、コマンドインジェクション・XSS・安全でないコードパターンなどの潜在的リスクを検出して警告します。
 
-### フロントエンド: frontend-design
+:::message alert
+**注意**: Web 上で「security-sweep」というプラグインが紹介されていることがありますが、公式マーケットプレイスに security-sweep は存在しません。セキュリティ関連の Anthropic 製プラグインは **security-guidance** です。
+:::
 
-Figma デザインやスクリーンショットからフロントエンドコンポーネントを生成します。React・Vue・Svelte に対応し、既存のデザインシステムに合わせたコード生成が可能です。
+### その他の Anthropic 製プラグイン
+
+| プラグイン | 種別 | 概要 |
+|---|---|---|
+| **pr-review-toolkit** | エージェント | コメント精度・テストカバレッジ・エラーハンドリング・型設計・コード品質・簡潔化の 6 エージェントで PR を多角的にレビュー |
+| **hookify** | スキル | hooks.json を直接編集せず、Markdown ファイルで簡単にフックを作成。会話パターンの分析から自動ルール生成も可能 |
+| **playground** | スキル | インタラクティブな HTML プレイグラウンド（コントロール + ライブプレビュー + プロンプト出力）を単一ファイルで生成 |
+| **skill-creator** | スキル | 新しいスキルの作成・改善・パフォーマンス測定（eval 実行・ベンチマーク） |
+| **plugin-dev** | スキル | プラグイン開発ツールキット。フック・MCP・構造・コマンド・エージェント・スキルの 7 つの専門スキルを提供 |
+| **session-report** | スキル | セッションの使用状況（トークン数・キャッシュ・コスト）を HTML レポートとして出力 |
+| **code-simplifier** | エージェント | コードの簡潔化・一貫性向上・保守性改善に特化したリファクタリングエージェント |
+| **explanatory-output-style** | スキル | 実装の選択理由やコードベースのパターンについて教育的な解説を追加する出力スタイル |
+| **LSP 系**（13 個） | LSP | TypeScript, Python, Go, Rust, Ruby, Java, C#, Kotlin, C/C++, PHP, Lua, Swift, Elixir の各言語サーバー |
+
+## おすすめプラグイン — サードパーティ製
+
+### superpowers — Claude の思考力を底上げ
+
+Claude の**計画・質問・デバッグの質を向上**させるプラグインです。[obra 氏](https://github.com/obra/superpowers)が開発。
 
 ```bash
-claude plugin add frontend-design
+# 公式マーケットプレイスに登録済み
+claude plugin install superpowers
 ```
 
-**おすすめの理由**: デザイナーとエンジニアの間のハンドオフ工数を大幅に削減します。Figma MCP サーバーと組み合わせることで、デザインファイルから直接コンポーネントを生成できます。
+- ブレインストーミング強化
+- サブエージェント駆動の開発ワークフロー
+- Red/Green TDD の実践
+- 体系的なデバッグ手法
+- 新しいスキルの自動作成・テスト
 
-### 総合拡張: Superpowers
+### codex（OpenAI）— AI コードレビューの多角化
 
-ファイルの一括リネーム、依存関係の自動更新、デッドコード検出、パフォーマンスプロファイリングなど、日常的に使う便利機能をまとめたオールインワンプラグインです。
+Claude Code 内から **OpenAI Codex を呼び出し**、セカンドオピニオンのレビューやタスク委譲ができるプラグインです。
 
 ```bash
-claude plugin add superpowers
+# OpenAI のマーケットプレイスを追加
+claude plugin marketplace add openai/codex-plugin-cc
+
+# インストール
+claude plugin install codex@openai-codex
 ```
 
-**おすすめの理由**: 個別にツールを入れるよりも管理が楽で、1 つのプラグインで幅広いユースケースをカバーできます。
+:::message
+codex プラグインについては、別記事「[Claude Code × OpenAI Codex プラグインで AI コードレビューを多角化する](https://zenn.dev/inouehiroyuki/articles/2026-04-05-claude-code-codex-plugin)」で詳しく解説しています。
+:::
 
-## おすすめ MCP サーバー
+### coderabbit — 外部 AI によるコードレビュー
 
-プラグインとは別に、MCP（Model Context Protocol）サーバーを設定することで Claude Code の能力をさらに拡張できます。
+CodeRabbit の専用 AI アーキテクチャと **40 以上の静的解析ツール**を組み合わせたコードレビュープラグインです。
 
-MCP サーバーの設定は、プロジェクトルートの `.claude/settings.json` に記述します。チーム共有の場合はこのファイルをリポジトリにコミットし、個人設定の場合は `~/.claude/settings.json` に記述してください。
-
-### Context7 — ライブラリドキュメント参照
-
-ライブラリの最新ドキュメントをリアルタイムで取得し、古い知識に基づくコード生成を防ぎます。
-
-```json
-{
-  "mcpServers": {
-    "context7": {
-      "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp"]
-    }
-  }
-}
+```bash
+claude plugin install coderabbit
 ```
 
-### Playwright — ブラウザ自動化
+### その他の注目サードパーティプラグイン
 
-ブラウザの操作をClaude Code から直接制御できます。E2E テストの作成・実行やスクレイピングに最適です。
+| プラグイン | カテゴリ | 概要 |
+|---|---|---|
+| **exa** | 検索 | Exa AI による Web 検索・ディープリサーチ・コンテンツ抽出 |
+| **firecrawl** | 開発 | Web スクレイピング。任意の Web サイトを LLM 向けのクリーンなデータに変換 |
+| **expo** | 開発 | React Native / Expo アプリのビルド・デプロイ・デバッグ |
+| **stripe** | 開発 | Stripe 決済統合の開発支援 |
+| **auth0** | セキュリティ | フレームワークを自動検出して Auth0 認証を追加 |
+| **semgrep** | セキュリティ | リアルタイムのセキュリティ脆弱性検出 |
+| **sonarqube** | セキュリティ | SonarQube のコード品質・セキュリティ基準を自動適用 |
 
-```json
-{
-  "mcpServers": {
-    "playwright": {
-      "command": "npx",
-      "args": ["-y", "@playwright/mcp"]
-    }
-  }
-}
-```
+## MCP サーバー系プラグイン
 
-### GitHub MCP — リポジトリ操作
+公式マーケットプレイスには、**MCP サーバーをプラグインとしてラップ**したものも多数登録されています。`claude plugin install` だけで MCP サーバーの設定が完了するため、`.mcp.json` を手動で書く必要がありません。
 
-Issue・PR・Actions の管理を Claude Code 内で完結させます。`gh` CLI よりもコンテキストを理解した操作が可能です。
+### ドキュメント参照
 
-```json
-{
-  "mcpServers": {
-    "github": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"],
-      "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "<your-token>"
-      }
-    }
-  }
-}
-```
+| プラグイン | 提供元 | 概要 |
+|---|---|---|
+| **context7** | Upstash | React・Next.js・Prisma 等のバージョン別最新ドキュメントを取得。古い API を使ってしまう問題を解消 |
 
-### Figma — デザイン → コード
+### ブラウザ・テスト
 
-Figma のデザインデータを直接読み取り、コンポーネントコードを生成します。frontend-design プラグインと組み合わせると強力です。
+| プラグイン | 提供元 | 概要 |
+|---|---|---|
+| **playwright** | Microsoft | ブラウザ操作の自動化、E2E テスト、スクリーンショット取得、フォーム操作 |
 
-```json
-{
-  "mcpServers": {
-    "figma": {
-      "command": "npx",
-      "args": ["-y", "figma-developer-mcp"],
-      "env": {
-        "FIGMA_API_KEY": "<your-key>"
-      }
-    }
-  }
-}
-```
+### 開発ツール連携
 
-### PostgreSQL — DB 操作
+| プラグイン | 提供元 | 概要 |
+|---|---|---|
+| **github** | GitHub | リポジトリ・PR・Issue・コードレビューの操作 |
+| **gitlab** | GitLab | リポジトリ・MR・CI/CD パイプラインの管理 |
+| **linear** | Linear | Issue トラッキング・プロジェクト管理 |
+| **sentry** | Sentry | エラーレポートの閲覧・スタックトレース分析・本番デバッグ |
+| **figma** | Figma | デザインファイルへのアクセス・コンポーネント情報の抽出・デザイントークンの取得 |
 
-データベースに直接クエリを発行し、スキーマの確認やデータの調査を Claude Code 内で行えます。
+### データベース
 
-```json
-{
-  "mcpServers": {
-    "postgres": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-postgres"],
-      "env": {
-        "POSTGRES_CONNECTION_STRING": "<your-connection-string>"
-      }
-    }
-  }
-}
-```
+| プラグイン | 提供元 | 概要 |
+|---|---|---|
+| **mongodb** | MongoDB | データベース接続・クエリ・スキーマ管理 |
+| **supabase** | Supabase | DB 操作・認証・ストレージ・エッジファンクション |
+| **neon** | Neon | サーバーレス PostgreSQL のプロジェクト・DB 管理 |
+| **firebase** | Google | Firestore・認証・Cloud Functions の管理 |
+| **prisma** | Prisma | PostgreSQL の DB 管理・スキーママイグレーション・SQL 実行 |
 
-### Sentry — 本番デバッグ
+### デプロイ・インフラ
 
-Sentry のエラーログを Claude Code に取り込み、スタックトレースから原因箇所を特定・修正できます。
+| プラグイン | 提供元 | 概要 |
+|---|---|---|
+| **vercel** | Vercel | デプロイ管理・ビルド状況確認・環境設定 |
+| **cloudflare** | Cloudflare | Workers・Durable Objects・Agents SDK の開発 |
+| **railway** | Railway | アプリ・DB・インフラのデプロイと管理 |
+| **terraform** | HashiCorp | Terraform エコシステムとの統合 |
 
-```json
-{
-  "mcpServers": {
-    "sentry": {
-      "command": "npx",
-      "args": ["-y", "@sentry/mcp-server"],
-      "env": {
-        "SENTRY_AUTH_TOKEN": "<your-token>"
-      }
-    }
-  }
-}
-```
+### コミュニケーション
+
+| プラグイン | 提供元 | 概要 |
+|---|---|---|
+| **slack** | Slack | メッセージ検索・チャンネルアクセス・スレッド閲覧 |
+| **notion** | Notion | ページ検索・ドキュメント作成・DB 管理 |
+| **atlassian** | Atlassian | Jira・Confluence の検索・作成・管理 |
 
 ## 目的別おすすめ構成
 
-### 個人開発者向け — まず入れる 3 選
-
-個人開発でスピードを重視するなら、この 3 つから始めましょう。
-
-| 種別 | 名前 | 理由 |
-|------|------|------|
-| プラグイン | **feature-dev** | 開発フローを構造化して抜け漏れを防止 |
-| プラグイン | **ship** | PR 作成の手間を大幅に削減 |
-| MCP サーバー | **Context7** | 最新ドキュメント参照でハルシネーションを抑制 |
+### 個人開発者 — まずはこの 3 つから
 
 ```bash
-# プラグイン
-claude plugin add feature-dev ship
-
-# MCP サーバー（.claude/settings.json に追記）
-# Context7 の設定は「おすすめ MCP サーバー」セクションを参照
+claude plugin install feature-dev
+claude plugin install commit-commands
+claude plugin install security-guidance
 ```
 
-### チーム開発向け
+**feature-dev** で設計から実装、**commit-commands** でコミット・PR 作成、**security-guidance** でファイル編集時のセキュリティ警告。個人開発のワークフローを一通りカバーできます。
 
-チーム開発では品質管理と情報共有が重要です。
-
-| 種別 | 名前 | 理由 |
-|------|------|------|
-| プラグイン | **code-review** | 並列レビューで品質を底上げ |
-| プラグイン | **agentlint** | チーム固有のコーディング規約を自動チェック |
-| プラグイン | **connect-apps** | Slack・Jira 等との連携でコミュニケーションを効率化 |
-| MCP サーバー | **GitHub MCP** | PR・Issue 管理を Claude Code 内で完結 |
+### チーム開発 — レビューを自動化
 
 ```bash
-# プラグイン
-claude plugin add code-review agentlint connect-apps
-
-# MCP サーバー（.claude/settings.json に追記）
-# GitHub MCP の設定は「おすすめ MCP サーバー」セクションを参照
+claude plugin install feature-dev
+claude plugin install code-review
+claude plugin install commit-commands
 ```
 
-### セキュリティ重視向け
+**code-review** の 4 エージェント並列レビューが、チーム内のレビュー負荷を軽減します。信頼度スコアによるフィルタリングで、ノイズの少ないレビューコメントが GitHub PR に自動投稿されます。
 
-セキュリティが最優先のプロジェクト向けの構成です。
-
-| 種別 | 名前 | 理由 |
-|------|------|------|
-| プラグイン | **security-sweep** | OWASP Top 10 準拠のセキュリティスキャン |
-| プラグイン | **code-review** | セキュリティ軸のレビューで脆弱性を早期検出 |
-| MCP サーバー | **Sentry MCP** | 本番エラーの即座な原因特定 |
+### 多角的な品質チェック
 
 ```bash
-# プラグイン
-claude plugin add security-sweep code-review
+claude plugin install code-review
+claude plugin install security-guidance
 
-# MCP サーバー（.claude/settings.json に追記）
-# Sentry MCP の設定は「おすすめ MCP サーバー」セクションを参照
+# Codex プラグインで別の AI の視点を追加
+claude plugin marketplace add openai/codex-plugin-cc
+claude plugin install codex@openai-codex
 ```
+
+**code-review** でロジックの穴を検出、**security-guidance** でセキュリティパターンを警告、**codex** の Adversarial レビューで設計判断を検証。複数の視点で見逃しを減らします。
+
+## 公式マーケットプレイスのカテゴリ分布
+
+参考までに、2026 年 4 月時点の公式マーケットプレイス全 160 プラグインのカテゴリ分布を示します。
+
+| カテゴリ | 数 | 主な例 |
+|---|---|---|
+| development | 66 | feature-dev, expo, stripe, terraform |
+| productivity | 29 | code-review, github, slack, notion |
+| database | 13 | mongodb, supabase, neon, firebase |
+| security | 8 | security-guidance, auth0, semgrep, sonarqube |
+| monitoring | 5 | sentry, datadog, posthog, amplitude |
+| deployment | 5 | vercel, cloudflare, railway, azure |
+| design | 2 | figma, miro |
+| testing | 1 | playwright |
+| その他 | 31 | superpowers, exa, firecrawl など |
 
 ## まとめ
 
-### 人気プラグイン比較一覧
+| プラグイン | 作者 | 一言で表すと |
+|---|---|---|
+| **feature-dev** | Anthropic | 7 フェーズの構造化された機能開発ワークフロー |
+| **code-review** | Anthropic | 4 エージェント並列レビュー + 信頼度スコアでフィルタ |
+| **commit-commands** | Anthropic | コミット・プッシュ・PR 作成の自動化 |
+| **frontend-design** | Anthropic | AI っぽくない個性的なフロントエンド生成 |
+| **security-guidance** | Anthropic | ファイル編集時のセキュリティ自動警告 |
+| **superpowers** | obra | Claude の計画・デバッグ能力を底上げ |
 
-| # | プラグイン | 概要 | インストール数 |
-|---|-----------|------|---------------|
-| 1 | feature-dev | 7 フェーズ構造化ワークフロー | 89,000+ |
-| 2 | code-review | マルチエージェント並列レビュー | 72,000+ |
-| 3 | security-sweep | OWASP Top 10 セキュリティスキャン | 58,000+ |
-| 4 | ship | PR 自動化パイプライン | 45,000+ |
-| 5 | connect-apps | 500+ SaaS 連携 | 38,000+ |
-
-### まず入れるべき 3 選
-
-1. **feature-dev** — 開発の骨格を構造化
-2. **code-review** — コード品質を自動で担保
-3. **security-sweep** — セキュリティリスクを早期に発見
-
-プラグインエコシステムは日々成長しています。`claude plugin search` で最新のプラグインを検索し、自分のワークフローに合ったものを見つけてみてください。
+プラグインはすべて `claude plugin install <名前>` でインストールできます。まずは **feature-dev** と **code-review** の 2 つを試して、Claude Code の開発ワークフローがどう変わるか体感してみてください。
