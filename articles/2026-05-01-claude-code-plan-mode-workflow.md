@@ -140,11 +140,9 @@ Plan Mode を使い始めると、こんな違和感に出会うことがあり�
 
 > プランの方向性は合っているけど、ファイル配置の流儀やテストの書き方がプロジェクト規約と違う
 
-この症状について、公式 docs は明確に書いています。
+これは Plan Mode の限界というより、**Claude がプロジェクト規約を知らない**ことが原因のことが多いです。CLAUDE.md は Claude がセッション開始時に毎回読むファイルなので、ここにアーキテクチャ判断・コードスタイル・テストの流儀を書いておくと、Plan Mode で生成される計画が最初から規約に沿ったものになります。
 
-> If Claude generates a plan that doesn't match your project's architecture or conventions, this almost always means your CLAUDE.md is missing or incomplete
-
-プランが規約に合わないときは、ほぼ間違いなく CLAUDE.md が不足している、ということです。Plan Mode 単体で精度を上げようとせず、**プロジェクト規約は CLAUDE.md にあらかじめ書いておく**のが前提になります。
+つまり Plan Mode 単体で精度を上げようとせず、**プロジェクト規約は CLAUDE.md にあらかじめ書いておく**のが前提になります。
 
 ### CLAUDE.md に書くべきこと・書かないこと
 
