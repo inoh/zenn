@@ -6,50 +6,45 @@ topics: ["claudecode", "ai", "planmode", "anthropic", "agent"]
 published: true
 ---
 
-## はじめに：なぜ「いきなり実装」が罠なのか
+## はじめに
 
-Claude Code を使い始めて数週間も経つと、誰もが一度は次の体験をする。
+Claude Code を使い始めて少し経つと、こんな経験をしたことはないでしょうか。
 
-> 「ざっくり要件を投げる → なぜか動くコードが返ってくる → でも要件と微妙にズレている → 直してもらう → さらにズレる → 自分で書き直したほうが速かった」
+> ざっくり要件を投げる → なぜか動くコードが返ってくる → でも要件と微妙にズレている → 直してもらう → さらにズレる → 自分で書き直したほうが速かった
 
-この感覚は気のせいではない。METR が 2025 年に行った RCT（ランダム化比較試験）では、**経験豊富な OSS 開発者 16 名・246 タスクで AI ツール使用時の完了時間が 19% 増加**した。さらに興味深いのは、参加者本人は「AI で 20% 速くなった」と感じていたことだ。客観値と主観値が 40 ポイント近く乖離している[^metr2025]。
+実はこれ、データでも裏付けられています。METR が 2025 年に行った RCT（ランダム化比較試験）では、経験豊富な OSS 開発者 16 名が 246 タスクを実施したところ、**AI ツールを使った場合の完了時間が 19% 増加**していました。さらに面白いのは、参加者本人は「AI で 20% 速くなった」と感じていたという点です（[METR の研究](https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/)）。
 
-[^metr2025]: METR, [Measuring the Impact of Early-2025 AI on Experienced Open-Source Developer Productivity](https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/) (2025-07-10). 16 名の開発者が 246 のタスクを実施した RCT。
+ところが METR は 2026 年 2 月に追加分析を公開していて、**生産性が向上した事例には共通点がある**ことを報告しています。それは「事前に書かれたプランに基づく大規模な実装やリファクタリング」だった、というものです（[METR トランスクリプト分析](https://metr.org/notes/2026-02-17-exploratory-transcript-analysis-for-estimating-time-savings-from-coding-agents/)）。
 
-ところが、METR が 2026 年 2 月に追加で行ったトランスクリプト分析では、生産性向上が確認できた事例（high-uplift transcripts）には共通点があった。それは **「事前に書かれたプラン」に基づく大規模実装やリファクタリング** だったということだ[^metr2026]。
+つまり「AI で速くなる人」と「遅くなる人」を分けているのは、**実装前にどれだけ計画を作っているか**でした。
 
-[^metr2026]: METR, [Analyzing coding agent transcripts to upper bound productivity gains from AI agents](https://metr.org/notes/2026-02-17-exploratory-transcript-analysis-for-estimating-time-savings-from-coding-agents/) (2026-02-17).
-
-つまり「AI で速くなる人」と「遅くなる人」を分けているのは、**実装前にどれだけ構造化された計画を作るか** だった。
-
-Anthropic 公式の Best Practices にも、まさにこの順序が明記されている。
+Anthropic 公式の Best Practices にも、このことがそのまま書かれています。
 
 > Explore first, then plan, then code
-> ([Best Practices for Claude Code](https://code.claude.com/docs/en/best-practices))
 
-本記事では、この「Explore → Plan → Implement → Commit」の 4 フェーズを支える機能 **Plan Mode** を軸に、2026 年現在の実践的な Claude Code 開発手法を整理する。
+この記事では、Claude Code の **Plan Mode** という機能を軸に、「Explore → Plan → Implement → Commit」の 4 フェーズワークフローを紹介します。
 
 :::message
-本記事の検証環境：Claude Code v2.1.126（macOS）。コマンドオプションは `claude --help` の出力から確認。
+本記事の検証環境：Claude Code v2.1.126（macOS）
 :::
 
-## Plan Mode とは何か
+## Plan Mode とは
 
-Plan Mode は **読み取り専用で動作する Claude Code の動作モード** だ。Plan Mode 中の Claude は、ファイルを読み込み、コードベースを分析し、質問に答え、実装計画を提示するが、**ファイルの編集もコマンド実行も一切行わない**[^docs-planmode]。
+Plan Mode は **読み取り専用で動作する Claude Code の動作モード**です。Plan Mode 中の Claude は、ファイルを読んだり、コードベースを分析したり、質問に答えたり、実装計画を提示したりできますが、**ファイルの編集もコマンド実行も一切行いません**。
 
-[^docs-planmode]: Anthropic, [Common workflows: Use Plan Mode for safe code analysis](https://code.claude.com/docs/en/common-workflows#use-plan-mode-for-safe-code-analysis).
+「計画」と「実行」を強制的に分けるための仕組み、と考えるとイメージしやすいです。
 
-「計画」と「実行」を強制的に分離するための仕組み、と捉えるとわかりやすい。
+### Plan Mode への入り方
 
-### Plan Mode への入り方（3 つの入り口）
+入り口は 3 つあります。
 
 | 方法 | 用途 |
 |---|---|
-| `Shift+Tab` を 2 回押す | 既存セッションの途中で切り替え（Normal → Auto-Accept → Plan の順で循環） |
+| `Shift+Tab` を 2 回押す | セッションの途中で切り替え（Normal → Auto-Accept → Plan の順で循環） |
 | `claude --permission-mode plan` | セッション開始時から Plan Mode |
 | `/plan`（v2.1.0+） | セッション中にスラッシュコマンドで切り替え |
 
-実機確認：
+実機で確認すると、こんな感じです。
 
 ```bash
 $ claude --version
@@ -59,31 +54,31 @@ $ claude --help | grep permission-mode
   --permission-mode <mode>  ... (choices: "acceptEdits", "auto", "bypassPermissions", "default", "dontAsk", "plan")
 ```
 
-`--permission-mode plan` が正式オプションとして提供されており、`plan` 以外にも `acceptEdits`（自動承認）、`auto`（リスク判定付き自動承認）、`bypassPermissions`（全承認スキップ）など複数の権限モードが存在する。
+`--permission-mode plan` は正式オプションとして提供されています。`plan` 以外にも `acceptEdits`（自動承認）、`auto`（リスク判定付き自動承認）、`bypassPermissions`（全承認スキップ）など複数の権限モードがあります。
 
-### ヘッドレス実行も可能
+### ヘッドレス実行もできる
 
-Plan Mode は対話セッションだけでなく、`-p` フラグと組み合わせてヘッドレス実行もできる。
+Plan Mode は対話セッションだけでなく、`-p` フラグと組み合わせてヘッドレス実行も可能です。
 
 ```bash
 claude --permission-mode plan -p "Analyze the authentication system and suggest improvements"
 ```
 
-CI で Pull Request の差分に対する設計レビューを自動化したい、といった用途で有用だ。
+CI で PR の差分に対する設計レビューを自動化したい、といった用途で使えます。
 
 ## 公式推奨の 4 フェーズワークフロー
 
-Anthropic Best Practices が推奨するワークフローは、以下の 4 つのフェーズで構成される[^docs-bp]。
-
-[^docs-bp]: Anthropic, [Best Practices for Claude Code: Explore first, then plan, then code](https://code.claude.com/docs/en/best-practices#explore-first-then-plan-then-code).
+Anthropic Best Practices が推奨するワークフローは、4 つのフェーズで構成されています。
 
 ```
 Explore（調査）→ Plan（計画）→ Implement（実装）→ Commit（コミット）
 ```
 
-### Phase 1: Explore — まずは読む
+順番に見ていきます。
 
-Plan Mode に入って、関連ファイルを読ませる。プロンプトは「実装してくれ」ではなく「読んで理解しろ」にする。
+### Phase 1: Explore — まずは読ませる
+
+Plan Mode に入って、関連ファイルを読ませます。プロンプトは「実装してくれ」ではなく「読んで理解して」にするのがポイントです。
 
 ```text
 [Plan Mode]
@@ -91,11 +86,11 @@ read /src/auth and understand how we handle sessions and login.
 also look at how we manage environment variables for secrets.
 ```
 
-このフェーズで Claude は `Read` / `Grep` / `Glob` などの読み取り系ツールしか使わない。コードベースに対する Claude の理解度を、まずこちらが把握する段階だ。
+このフェーズでは Claude は `Read` / `Grep` / `Glob` などの読み取り系ツールしか使いません。コードベースに対する Claude の理解度を、まず把握する段階です。
 
 ### Phase 2: Plan — 計画を作らせる
 
-Claude に詳細な実装計画を作らせる。
+次に、Claude に詳細な実装計画を作らせます。
 
 ```text
 [Plan Mode]
@@ -103,13 +98,16 @@ I want to add Google OAuth. What files need to change?
 What's the session flow? Create a plan.
 ```
 
-ここで重要なのが **`Ctrl+G` でプランをテキストエディタで開いて直接編集できる** という点。AI が出したプランをそのまま受け入れるのではなく、人間が手を加えてから実装に進める。
+ここで便利なのが **`Ctrl+G` でプランをテキストエディタで開いて直接編集できる**機能です。AI が出したプランをそのまま受け入れるのではなく、人間が手を加えてから実装に進められます。
 
-プランが固まると Claude は内部的に `ExitPlanMode` を呼び出し、承認を求めてくる。選択肢には「Yes」「Yes, and auto-accept edits」などがあり、ここで Auto-Accept Edits Mode に切り替えると、その後の実装フェーズで個別の承認プロンプトを省略できる。
+プランが固まると Claude は内部的に `ExitPlanMode` を呼び出して承認を求めてきます。選択肢には「Yes」「Yes, and auto-accept edits」などがあり、ここで Auto-Accept Edits Mode に切り替えると、その後の実装フェーズで個別の承認プロンプトを省略できます。
 
 ### Phase 3: Implement — 計画に沿って実装させる
 
-Normal Mode（または Auto-Accept Edits Mode）に戻して、計画に基づいて実装させる。重要なのは **「計画に基づいて」と明示すること**、そして **検証手段（テストなど）も同じプロンプトに含めること**。
+Normal Mode（または Auto-Accept Edits Mode）に戻して、計画に基づいて実装させます。コツは 2 つです。
+
+- **「計画に基づいて」と明示する**
+- **検証手段（テストなど）も同じプロンプトに含める**
 
 ```text
 [Normal Mode]
@@ -117,9 +115,7 @@ implement the OAuth flow from your plan. write tests for the
 callback handler, run the test suite and fix any failures.
 ```
 
-Anthropic 公式の言葉を借りれば、「Claude が自分の仕事を検証できる手段を提供することが、最もレバレッジの高い行為」だ[^docs-verify]。
-
-[^docs-verify]: Anthropic, [Best Practices: Give Claude a way to verify its work](https://code.claude.com/docs/en/best-practices#give-claude-a-way-to-verify-its-work).
+Anthropic 公式は「Claude が自分の仕事を検証できる手段を提供することが、最もレバレッジの高い行為」と書いています。テストやリンターなど、Claude が自分で正しさを確認できる仕組みを用意しておくと精度が一気に上がります。
 
 ### Phase 4: Commit — そのまま PR まで
 
@@ -128,22 +124,23 @@ Anthropic 公式の言葉を借りれば、「Claude が自分の仕事を検証
 commit with a descriptive message and open a PR
 ```
 
-`gh` CLI が入っていれば、Claude は PR の作成までやってくれる。Plan の段階で文脈が固まっているので、PR の説明文も的を射たものになりやすい。
+`gh` CLI が入っていれば、Claude は PR の作成までやってくれます。Plan の段階で文脈が固まっているので、PR の説明文も的を射たものになりやすいです。
 
-## CLAUDE.md と Plan Mode は両輪である
+## CLAUDE.md と Plan Mode はセットで効く
 
-Plan Mode を使い始めると、しばしば次のような違和感に遭遇する。
+Plan Mode を使い始めると、こんな違和感に出会うことがあります。
 
-> プランの方向性は合っているが、ファイル配置の流儀やテストの書き方がプロジェクト規約と違う
+> プランの方向性は合っているけど、ファイル配置の流儀やテストの書き方がプロジェクト規約と違う
 
-この症状について、公式 docs は明確に指摘している。
+この症状について、公式 docs は明確に書いています。
 
 > If Claude generates a plan that doesn't match your project's architecture or conventions, this almost always means your CLAUDE.md is missing or incomplete
-> ([Best Practices](https://code.claude.com/docs/en/best-practices))
 
-つまり Plan Mode 単体で精度を上げようとせず、**プロジェクト規約は CLAUDE.md に書いておく** のが前提になる。
+プランが規約に合わないときは、ほぼ間違いなく CLAUDE.md が不足している、ということです。Plan Mode 単体で精度を上げようとせず、**プロジェクト規約は CLAUDE.md にあらかじめ書いておく**のが前提になります。
 
-### CLAUDE.md に「書くべき／書かない」公式ガイド
+### CLAUDE.md に書くべきこと・書かないこと
+
+公式の Best Practices より整理しました。
 
 | ✅ 書くべき | ❌ 書かない |
 |---|---|
@@ -155,25 +152,19 @@ Plan Mode を使い始めると、しばしば次のような違和感に遭遇�
 | 開発環境のクセ（必須の環境変数等） | ファイル単位の説明 |
 | よくあるハマりどころ | 「綺麗なコードを書け」のような自明な指示 |
 
-公式 docs より整理[^docs-claudemd]。
+公式は「書きすぎた CLAUDE.md は、重要なルールがノイズに埋もれて Claude が無視する」とも指摘しています。CLAUDE.md は **コードと同じくレビューと剪定の対象**にしておくとよさそうです。
 
-[^docs-claudemd]: Anthropic, [Best Practices: Write an effective CLAUDE.md](https://code.claude.com/docs/en/best-practices#write-an-effective-claudemd).
+`/init` コマンドを使うとプロジェクト構造を解析して、たたき台の CLAUDE.md を生成してくれます。そこから不要な行を削っていくのが現実的なスタートポイントになります。
 
-「書きすぎた CLAUDE.md は、重要なルールがノイズに埋もれて Claude が無視する」と公式が警告している点は重要。CLAUDE.md は **コードと同じくレビューと剪定の対象** にすべきだ。
+## Plan Mode を「使わない」判断も大事
 
-判断基準として `/init` コマンドが用意されている。プロジェクト構造を解析して、たたき台の CLAUDE.md を生成してくれる。そこから不要な行を削っていくのが現実的なスタートポイントになる。
-
-## 「Plan Mode を使わない」判断も同じくらい大事
-
-Plan Mode は万能ではない。公式 docs は次のように釘を刺している。
+Plan Mode は万能ではありません。公式 docs は次のように釘を刺しています。
 
 > Plan Mode is useful, but also adds overhead.
 >
-> For tasks where the scope is clear and the fix is small (like fixing a typo, adding a log line, or renaming a variable) ask Claude to do it directly.
->
-> Planning is most useful when you're uncertain about the approach, when the change modifies multiple files, or when you're unfamiliar with the code being modified. **If you could describe the diff in one sentence, skip the plan.**
+> ... If you could describe the diff in one sentence, skip the plan.
 
-要約すると：
+要するに、こういう使い分けです。
 
 | Plan Mode を使う | Plan Mode を skip |
 |---|---|
@@ -181,41 +172,35 @@ Plan Mode は万能ではない。公式 docs は次のように釘を刺して�
 | 複数ファイルにまたがる変更 | 単一ファイルの小さな修正 |
 | 不慣れなコードベース | 1文で diff を説明できる |
 
-「タイポ修正」「ログ追加」「変数リネーム」を Plan Mode でやるのは過剰、と公式が明言している。
+「タイポ修正」「ログ追加」「変数リネーム」を Plan Mode でやるのは過剰、と公式が明言しています。
 
 ## METR が示した「真の勝ちパターン」
 
-冒頭で触れた METR の結果を、もう少し深く見てみる。
+冒頭の METR の話を、もう少し掘り下げてみます。
 
 ### 主観と実測の乖離
 
-2025 年の RCT では、開発者は事前に「AI で 24% 速くなる」と予測し、実施後は「20% 速くなった」と感じていた。だが客観的な完了時間は **19% 増加** していた[^metr2025]。
+2025 年の RCT では、開発者は事前に「AI で 24% 速くなる」と予測し、実施後は「20% 速くなった」と感じていました。でも実測は **19% 増加**でした。
 
-これは認知バイアスの典型例で、AI が「考えている時間」「コードを生成している時間」が、開発者の主観では待ち時間ではなく能動的な作業時間として記憶されやすい、という解釈ができる。
+これは認知バイアスの典型例で、AI が「考えている時間」「コードを生成している時間」が、開発者の主観では待ち時間ではなく能動的な作業時間として記憶されやすい、という解釈ができます。
 
-### 「速くなった人」に共通する条件
+### 速くなった人に共通する条件
 
-ところが METR の 2026 年 2 月のフォローアップでは、**生産性向上が確認できた事例には明確な共通点** があった[^metr2026]。
+ところが METR の 2026 年 2 月のフォローアップでは、生産性が確認できた事例に共通点がありました。
 
 - 事前にプランが書かれている
 - 大規模な実装やリファクタリングである
 - タスクが「監督と検証」に向いている
 
-つまり Claude（や類似の AI エージェント）は、**「実装そのもの」より「監督・検証」を効率化するツール** として真価を発揮する。これは独立した SSRN のワーキングペーパーでも「AI エージェントは労働者の労力を実装から監督へとシフトさせる」と報告されている[^sarkar]。
+つまり Claude（や類似の AI エージェント）は、「実装そのもの」より「監督・検証」を効率化するツールとして真価を発揮するようです。Plan Mode はこの構造変化を、**明示的にワークフローに組み込んだ機能**だと言えそうです。
 
-[^sarkar]: Sarkar, S. K. [AI Agents and Higher-Order Work](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5713646). SSRN Working Paper.
-
-Plan Mode はこの構造変化を **明示的にワークフローに組み込んだもの** だと言える。
-
-> 「Claude にコードを書かせる」のではなく、「Claude が書こうとしているコードをレビューする」立場に最初から立つ。
-
-これが Plan Mode の本質だ。
+「Claude にコードを書かせる」のではなく「Claude が書こうとしているコードをレビューする」立場に最初から立つ、というイメージです。
 
 ## 実践 Tips
 
 ### Tip 1: `defaultMode: "plan"` でデフォルト化する
 
-毎回 `Shift+Tab` を押すのが面倒なら、プロジェクトの `.claude/settings.json` でデフォルトを Plan Mode にできる。
+毎回 `Shift+Tab` を押すのが面倒なら、プロジェクトの `.claude/settings.json` でデフォルトを Plan Mode にできます。
 
 ```json
 {
@@ -225,11 +210,11 @@ Plan Mode はこの構造変化を **明示的にワークフローに組み込�
 }
 ```
 
-「不慣れな大規模リポジトリ」「壊したくない本番コード」を扱うときの安全装置として有効。
+不慣れな大規模リポジトリや、壊したくない本番コードを扱うときの安全装置として便利です。
 
 ### Tip 2: Plan Mode → Auto-Accept Edits の連携
 
-公式が推奨する流れは：
+公式が推奨する流れはこんな感じです。
 
 ```
 Plan Mode で計画を固める
@@ -238,44 +223,38 @@ Plan Mode で計画を固める
 Auto-Accept Edits Mode で実装が一気に進む
 ```
 
-計画段階では人間が関与し、実装段階では介入を最小化する。**「重要な意思決定は人間が、機械的な実装は Claude が」** という役割分担を明示的に作るパターンだ。
+計画段階では人間が関与し、実装段階では介入を最小化する。「重要な意思決定は人間が、機械的な実装は Claude が」という役割分担を明示的に作るパターンです。
 
 ### Tip 3: 「2 回直したら `/clear`」 ルール
 
-公式 Best Practices が「common failure pattern」として挙げているもののひとつ：
+公式 Best Practices が「common failure pattern」として挙げているもののひとつです。
 
-> **Correcting over and over.** Claude does something wrong, you correct it, it's still wrong, you correct again. Context is polluted with failed approaches.
->
-> Fix: After two failed corrections, `/clear` and write a better initial prompt incorporating what you learned.
+> Correcting over and over. Claude does something wrong, you correct it, it's still wrong, you correct again. Context is polluted with failed approaches.
 
-同じことを 2 回直しても直らないなら、コンテキストが「失敗した試行」で汚染されている。`/clear` で仕切り直し、得た学びを Plan Mode で再計画したほうが速い。
+同じことを 2 回直しても直らないなら、コンテキストが「失敗した試行」で汚染されています。`/clear` で仕切り直して、得た学びを Plan Mode で再計画したほうが速いことが多いです。
 
-### Tip 4: ヘッドレス Plan Mode で設計レビュー bot を作る
+### Tip 4: ヘッドレス Plan Mode で設計レビュー bot
 
 ```bash
 gh pr diff 123 | claude --permission-mode plan -p \
   "Review this PR diff. Identify edge cases, missing tests, and potential regressions. Output as a markdown checklist."
 ```
 
-PR の差分を Plan Mode で分析させ、結果をコメントとして投稿する CI ジョブが組める。Plan Mode は読み取り専用なので、CI で安全に動かせる点もメリット。
+PR の差分を Plan Mode で分析させて、結果をコメントとして投稿する CI ジョブが組めます。Plan Mode は読み取り専用なので、CI で安全に動かせるのもメリットです。
 
-## まとめ：2026 年は「計画する人」が勝つ
+## まとめ
 
-ここまでの内容を 1 行で言うと：
-
-> Claude Code の生産性は **「いきなり実装させない訓練」** で決まる。
-
-具体的には：
+ここまでの内容をまとめると、こんな感じになります。
 
 1. **Plan Mode を入り口にする**（`--permission-mode plan` / `Shift+Tab×2` / `/plan`）
 2. **4 フェーズを意識する**（Explore → Plan → Implement → Commit）
 3. **CLAUDE.md を磨く**（プロジェクト規約は CLAUDE.md に集約）
 4. **使わない判断も大事**（小さな差分はオーバーヘッド）
-5. **「監督と検証」が AI 時代のレバレッジポイント**（METR が示した）
+5. **「監督と検証」が AI 時代のレバレッジポイント**（METR の知見）
 
-「AI を使うほど遅くなる」という METR の結果は、AI そのものの限界ではなく、**人間側のワークフローが追いついていない** ことの表れだ。Plan Mode はその差を埋めるためのツールであり、2026 年の Claude Code 開発の中心に置くべき機能だと言える。
+「AI を使うほど遅くなる」という METR の結果は、AI そのものの限界というより、人間側のワークフローが追いついていない部分が大きそうです。Plan Mode はその差を埋めるためのツールで、2026 年の Claude Code 開発の中心に置いておくとよいかもしれません。
 
-逆に言えば、Plan Mode を使わずに毎回いきなり実装させているなら、まだ Claude Code の半分の力しか引き出せていない可能性が高い。今日の最後のセッションから、`Shift+Tab` を 2 回押すところから始めてみてほしい。
+普段 Plan Mode を使っていない方は、次のセッションで `Shift+Tab` を 2 回押すところから試してみてください。
 
 ## 参考リンク
 
