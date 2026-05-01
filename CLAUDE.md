@@ -22,3 +22,10 @@ mainブランチへの直接pushは禁止。記事の新規作成・更新は必
 ## トラブル対応
 
 Zennに誤った記事が公開された場合、gitの操作だけで解決しようとしない。Zennダッシュボード（https://zenn.dev/dashboard）からの手動非公開・削除を最初に提案すること。
+
+## スキル
+
+このリポジトリのスキルは `.claude/skills/<skill-name>/SKILL.md` に配置する（旧 `.claude/commands/` は廃止）。
+
+- `publish-article`: Zennに新規記事を作成してPR経由で公開する
+- `research-topic`: AI開発関連トピックを多層リサーチして記事素材を作る
