@@ -30,7 +30,7 @@ Anthropic 公式の Best Practices にも、このことがそのまま書かれ
 
 ## Plan Mode とは
 
-Plan Mode は **読み取り専用で動作する Claude Code の動作モード**です。Plan Mode 中の Claude は、ファイルを読んだり、コードベースを分析したり、質問に答えたり、実装計画を提示したりできますが、**ファイルの編集もコマンド実行も一切行いません**。
+Plan Mode は **ソースコードを編集しない動作モード**です。Plan Mode 中の Claude は、ファイルを読んだり、コードベースを調査するためのシェルコマンド（grep など）を実行したり、実装計画を書いたりはできますが、**ソースの編集は一切行いません**。
 
 「計画」と「実行」を強制的に分けるための仕組み、と考えるとイメージしやすいです。
 
@@ -40,9 +40,9 @@ Plan Mode は **読み取り専用で動作する Claude Code の動作モード
 
 | 方法 | 用途 |
 |---|---|
-| `Shift+Tab` を 2 回押す | セッションの途中で切り替え（Normal → Auto-Accept → Plan の順で循環） |
+| `Shift+Tab` を押す | セッション途中で切り替え（`default` → `acceptEdits` → `plan` の順で循環） |
 | `claude --permission-mode plan` | セッション開始時から Plan Mode |
-| `/plan`（v2.1.0+） | セッション中にスラッシュコマンドで切り替え |
+| プロンプト先頭に `/plan` を付ける | 単発のプロンプトだけ Plan Mode で動かす |
 
 実機で確認すると、こんな感じです。
 
@@ -100,7 +100,15 @@ What's the session flow? Create a plan.
 
 ここで便利なのが **`Ctrl+G` でプランをテキストエディタで開いて直接編集できる**機能です。AI が出したプランをそのまま受け入れるのではなく、人間が手を加えてから実装に進められます。
 
-プランが固まると Claude は内部的に `ExitPlanMode` を呼び出して承認を求めてきます。選択肢には「Yes」「Yes, and auto-accept edits」などがあり、ここで Auto-Accept Edits Mode に切り替えると、その後の実装フェーズで個別の承認プロンプトを省略できます。
+プランが固まると Claude は承認プロンプトを表示します。公式 docs によると選択肢は次の 5 つです。
+
+- Approve and start in auto mode（Auto Mode で実装開始）
+- Approve and accept edits（編集を自動承認しつつ実装開始）
+- Approve and review each edit manually（編集を 1 件ずつレビューしながら実装）
+- Keep planning with feedback（フィードバックを伝えて計画を継続）
+- Refine with Ultraplan（[Ultraplan](https://code.claude.com/docs/en/ultraplan) でブラウザベースのレビュー）
+
+それぞれの「Approve」系オプションは、計画フェーズのコンテキストをクリアしてから実装を始めるかどうかも選べるようになっています。
 
 ### Phase 3: Implement — 計画に沿って実装させる
 
@@ -219,7 +227,7 @@ Plan Mode は万能ではありません。公式 docs は次のように釘を�
 ```
 Plan Mode で計画を固める
   ↓ Ctrl+G でプランを編集（任意）
-  ↓ 承認時に「Yes, and auto-accept edits」を選択
+  ↓ 承認時に「Approve and accept edits」を選択
 Auto-Accept Edits Mode で実装が一気に進む
 ```
 
