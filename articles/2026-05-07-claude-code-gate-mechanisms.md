@@ -1,5 +1,5 @@
 ---
-title: "Claude Code の三層ゲート設計 — Hooks × Permission Modes × Auto Mode で AI エージェントが本番を壊す前に止める"
+title: "Claude Code の三層ゲート設計 — Hooks × Permission Modes × Auto Mode"
 emoji: "🚧"
 type: "tech"
 topics: ["claudecode", "anthropic", "ai", "agent", "security"]
