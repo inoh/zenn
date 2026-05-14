@@ -8,42 +8,42 @@ published: true
 
 ## はじめに
 
-Claude Code の Skills を使い始めると、最初は「PDFを処理する」「コミットメッセージを書く」のような **単機能Skill** を1つだけ書く。これはこれでうまく動く。
+Claude Code の Skills を使い始めると、最初は「PDFを処理する」「コミットメッセージを書く」のような **単機能Skill** を1つだけ書くことが多いと思います。これはこれでうまく動きます。
 
-問題は、現実のワークフローが単機能では収まらないことだ。「リサーチして」「ネタを選んで」「下書きを書いて」「PRを出して」「マージする」——これらは別々のSkillに分けたいが、別々に呼び出していたら結局自分が指揮者になる必要がある。
+問題は、現実のワークフローが単機能では収まらないことです。「リサーチして」「ネタを選んで」「下書きを書いて」「PRを出して」「マージする」——これらは別々のSkillに分けたいのですが、別々に呼び出していたら結局自分が指揮者になる必要があります。
 
-Anthropic は Skills を **「composable resources」** と位置づけている[^anthropic-blog]。つまり、Skills は最初から **複数を組み合わせて使う** ことが前提の設計だ。本記事では「複数Skillをどう連鎖させ、どこに状態を置き、どこをAIに判断させるか」というオーケストレーション設計に絞って整理する。
+Anthropic は Skills を **「composable resources」** と位置づけています[^anthropic-blog]。つまり Skills は最初から **複数を組み合わせて使う** ことが前提の設計です。本記事では「複数Skillをどう連鎖させ、どこに状態を置き、どこをAIに判断させるか」というオーケストレーション設計に絞って整理します。
 
-筆者自身がこのリポジトリで `/research-topic` と `/publish-article` の2つのSkillを使っており、本記事もこの2つを連鎖させて書いている。後半でその構成例も示す。
+筆者自身もこのリポジトリで `/research-topic` と `/publish-article` の2つのSkillを使っており、本記事もこの2つを連鎖させて書いています。後半でその構成例もご紹介します。
 
 [^anthropic-blog]: [Equipping agents for the real world with Agent Skills - Anthropic Engineering](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)
 
 ## 公式が示す判断軸：「how」はSkill、「access」はMCP
 
-オーケストレーションの設計に入る前に、Skillの守備範囲を確定させておく。Anthropic公式blogはSkillsとMCPサーバーの使い分けを次のように示している[^anthropic-mcp]：
+オーケストレーションの設計に入る前に、Skillの守備範囲を確定させておきましょう。Anthropic公式blogは SkillsとMCPサーバーの使い分けを次のように示しています[^anthropic-mcp]。
 
 > If you're explaining how to do something, that's a skill. If you need Claude to access something, that's MCP.
 
-そして、両者の関係はこう続く：
+そして、両者の関係はこう続きます。
 
 > This separation keeps the architecture composable. A single skill can orchestrate multiple MCP servers, while a single MCP server can support dozens of different skills.
 
-つまり：
+つまり次のような役割分担になります。
 
 - **MCP**: 外部システム（GitHub、Notion、ファイルシステム等）への接続を提供する「手」
 - **Skill**: 「どう使うか」「どんな順序で呼ぶか」を定義する「頭脳」
 
-Skillが他のSkillを呼ぶことも、SkillがMCPサーバーを束ねることも、すべて **「howの記述」** に統一される。この視点で見ると、オーケストレーションは特別な機能ではなく、Skillsの本来の使い方そのものだとわかる。
+Skillが他のSkillを呼ぶことも、SkillがMCPサーバーを束ねることも、すべて **「howの記述」** に統一されます。この視点で見ると、オーケストレーションは特別な機能ではなく、Skillsの本来の使い方そのものだとわかります。
 
 [^anthropic-mcp]: [Extending Claude's capabilities with skills and MCP - Claude Blog](https://claude.com/blog/extending-claude-capabilities-with-skills-mcp-servers)
 
 ## オープン標準とClaude Code拡張を区別する
 
-オーケストレーション機能を語る前に、Skillsには **2つのレイヤー** があることを意識しておきたい。
+オーケストレーション機能を語る前に、Skillsには **2つのレイヤー** があることを意識しておきたいです。
 
 ### オープン標準（agentskills.io/specification）
 
-[Agent Skills 仕様](https://agentskills.io/specification)はAnthropicが発端でオープンソース化された規格で、Claude Code以外にも Cursor、Codex、Gemini CLI、VS Code、Copilotなど30以上のクライアントが採用している。標準フロントマターは以下：
+[Agent Skills 仕様](https://agentskills.io/specification)はAnthropicが発端でオープンソース化された規格で、Claude Code以外にも Cursor、Codex、Gemini CLI、VS Code、Copilotなど30以上のクライアントが採用しています。標準フロントマターは以下の通りです。
 
 | フィールド | 必須 | 制約 |
 |---|---|---|
@@ -54,11 +54,11 @@ Skillが他のSkillを呼ぶことも、SkillがMCPサーバーを束ねるこ�
 | `metadata` | No | 任意のkey-valueマップ |
 | `allowed-tools` | No | スペース区切り（Experimental） |
 
-仕様書には **Skill間連携・依存関係・状態共有に関する明示的な規定は存在しない**。連携は仕様の範囲外で、各クライアントが独自拡張で実現する設計になっている。
+仕様書には **Skill間連携・依存関係・状態共有に関する明示的な規定は存在しません**。連携は仕様の範囲外で、各クライアントが独自拡張で実現する設計になっています。
 
 ### Claude Code固有の拡張
 
-[Claude Code Docs](https://code.claude.com/docs/en/skills) で追加されているフロントマターフィールドは以下：
+[Claude Code Docs](https://code.claude.com/docs/en/skills) で追加されているフロントマターフィールドは以下の通りです。
 
 | フィールド | 用途 |
 |---|---|
@@ -73,113 +73,114 @@ Skillが他のSkillを呼ぶことも、SkillがMCPサーバーを束ねるこ�
 | `paths` | 特定ファイルパスで自動ロード |
 | `shell` | 動的コンテキスト注入のシェル指定 |
 
-オーケストレーションを支えるのは主に `context: fork`、`hooks`、`allowed-tools`、`paths`、それから本文中の動的コンテキスト注入（後述）だ。**これらはClaude Code固有なので、他のSkillsクライアントへの移植性はない** ことを覚えておく。
+オーケストレーションを支えるのは主に `context: fork`、`hooks`、`allowed-tools`、`paths`、それから本文中の動的コンテキスト注入（後述）です。**これらはClaude Code固有なので、他のSkillsクライアントへの移植性はない** という点には注意しておきましょう。
 
 ## Skill連携の4パターン
 
-複数Skillを連鎖させる構造は、おおむね4つに分類できる[^mindstudio]。
+複数Skillを連鎖させる構造は、おおむね4つに分類できます[^mindstudio]。
 
 [^mindstudio]: [Claude Code Skill Collaboration: How to Chain Skills Into End-to-End Workflows - MindStudio](https://www.mindstudio.ai/blog/claude-code-skill-collaboration-chaining-workflows)
 
 ### パターン1: Sequential Linear（直列）
 
-最も基本のパイプライン。前段の出力が次段の入力になる。
+最も基本のパイプラインです。前段の出力が次段の入力になります。
 
 ```
 /research-topic → /draft-article → /create-pr → /merge-pr
 ```
 
-実装はシンプルで、orchestrator slash commandが状態ファイルを読み、現在のステージに応じて次のSkillを呼ぶ。
+実装はシンプルで、orchestrator slash commandが状態ファイルを読み、現在のステージに応じて次のSkillを呼びます。
 
 ```yaml
 ---
 name: blog-publish
-description: Research, draft, and publish a blog article in sequence.
+description: ブログ記事のリサーチ、下書き、公開を一連のフローで実行する。
 disable-model-invocation: true
 ---
 
-State file: `.skills-state/blog-publish.json`
+状態ファイル: `.skills-state/blog-publish.json`
 
-1. Read state file. If absent, initialize with `{ "stage": "research" }`.
-2. Based on `stage`:
-   - `research`: invoke `/research-topic`, write findings to state, advance stage to `draft`
-   - `draft`: invoke `/draft-article`, write path to state, advance stage to `pr`
-   - `pr`: invoke `/create-pr`, write PR number, advance stage to `done`
-3. Stop when `stage == "done"`.
+1. 状態ファイルを読み込む。存在しなければ `{ "stage": "research" }` で初期化する
+2. `stage` の値に応じて分岐する
+   - `research`: `/research-topic` を呼び、結果を状態に書き込み、`stage` を `draft` に進める
+   - `draft`: `/draft-article` を呼び、生成パスを状態に書き込み、`stage` を `pr` に進める
+   - `pr`: `/create-pr` を呼び、PR番号を状態に書き込み、`stage` を `done` に進める
+3. `stage == "done"` で停止する
 ```
 
 ### パターン2: Parallel Fan-Out and Merge（並列展開）
 
-1つのSkillがジョブをN個に分解し、サブエージェントで並列処理してマージする。`context: fork` を使うと各Skill実行が独立コンテキストで走るので、メインの会話文脈を汚さない[^code-docs]。
+1つのSkillがジョブをN個に分解し、サブエージェントで並列処理してマージする構造です。`context: fork` を使うと各Skill実行が独立コンテキストで走るので、メインの会話文脈を汚しません[^code-docs]。
 
 [^code-docs]: [Extend Claude with skills - Claude Code Docs](https://code.claude.com/docs/en/skills)
 
 ```yaml
 ---
 name: review-all-changed-files
-description: Review each changed file in parallel and summarize findings.
+description: 変更されたファイルを並列でレビューし、指摘事項を集約する。
 context: fork
 agent: Explore
 ---
 
-For each file in `git diff --name-only main...HEAD`:
-1. Read the file
-2. Identify potential bugs, security issues, performance concerns
-3. Return findings as a structured list
+`git diff --name-only main...HEAD` の各ファイルについて以下を実行する。
 
-Findings will be merged by the caller.
+1. ファイルを読み込む
+2. バグの可能性、セキュリティ上の懸念、パフォーマンスの問題を特定する
+3. 指摘事項を構造化されたリストとして返す
+
+結果は呼び出し元でマージされる。
 ```
 
-サブエージェント側は読み取り専用ツールのみ持ち、結果だけを呼び出し元に返す。バッチ処理の総実行時間を大幅に短縮できる。
+サブエージェント側は読み取り専用ツールのみ持ち、結果だけを呼び出し元に返します。バッチ処理の総実行時間を大幅に短縮できます。
 
 ### パターン3: Conditional Routing（条件分岐）
 
-オーケストレーターが実行時の状態を見て、次にどのSkillを呼ぶかを決める。
+オーケストレーターが実行時の状態を見て、次にどのSkillを呼ぶかを決めます。
 
 ```yaml
 ---
 name: triage-and-fix
-description: Classify the failing test and route to the appropriate fix skill.
+description: 失敗したテストを分類し、適切な修正スキルにルーティングする。
 ---
 
-1. Read the latest test output from `.skills-state/triage.json`.
-2. Classify the failure category:
-   - `flaky` → invoke `/fix-flaky-test`
-   - `assertion` → invoke `/fix-assertion`
-   - `import-error` → invoke `/fix-import`
-   - else → stop and report
-3. Write classification to state file.
+1. `.skills-state/triage.json` から最新のテスト出力を読み込む
+2. 失敗カテゴリを分類する
+   - `flaky` → `/fix-flaky-test` を呼ぶ
+   - `assertion` → `/fix-assertion` を呼ぶ
+   - `import-error` → `/fix-import` を呼ぶ
+   - その他 → 停止して報告する
+3. 分類結果を状態ファイルに書き込む
 ```
 
-このパターンで重要なのは、各Skillが **明確なステータス（カテゴリー）を返すこと**。文字列で曖昧に返すと分岐が壊れるので、JSONフィールドで返すよう設計する。
+このパターンで重要なのは、各Skillが **明確なステータス（カテゴリー）を返すこと** です。文字列で曖昧に返すと分岐が壊れますので、JSONフィールドで返すよう設計しましょう。
 
 ### パターン4: Iterative Loop（反復）
 
-成功条件を満たすまでSkillを繰り返す。**最大反復回数か明確な成功条件を必ず定義する**[^mindstudio]——これを忘れると暴走する。
+成功条件を満たすまでSkillを繰り返します。**最大反復回数か明確な成功条件を必ず定義する**[^mindstudio]——これを忘れると暴走します。
 
 ```yaml
 ---
 name: fix-until-green
-description: Keep fixing the failing tests until all pass or 5 iterations elapse.
+description: 全テストがパスするか5回反復するまで、失敗テストの修正を繰り返す。
 ---
 
-State: `.skills-state/fix-loop.json` with `{ "iteration": 0, "max": 5, "passing": false }`
+状態: `.skills-state/fix-loop.json` に `{ "iteration": 0, "max": 5, "passing": false }` を保持する
 
-Loop:
-1. If `iteration >= max` or `passing == true`, stop.
-2. Run `pytest`. If exit 0, set `passing: true` and continue.
-3. Invoke `/fix-failing-tests` with the failure output.
-4. Increment `iteration`, write state, continue.
+ループ処理:
+1. `iteration >= max` または `passing == true` の場合は停止する
+2. `pytest` を実行する。exit code 0 なら `passing: true` をセットして継続する
+3. 失敗出力を引数に `/fix-failing-tests` を呼ぶ
+4. `iteration` をインクリメントし、状態を書き戻して継続する
 ```
 
 ## 状態管理：JSONを単一の真実の源に
 
-複数Skillをまたぐワークフローでは、状態を **構造化されたJSONファイル1つ** に集約する。テキストファイルで散らさない理由は2つ：
+複数Skillをまたぐワークフローでは、状態を **構造化されたJSONファイル1つ** に集約します。テキストファイルで散らさない理由は2つあります。
 
-1. **パース信頼性**：プレーンテキストは曖昧。各Skillが「どこから読むか」で揺れる
-2. **真実の源の一意性**：複数ファイルに状態を分けると、Skillが古いデータを読むリスクが出る
+1. **パース信頼性**：プレーンテキストは曖昧で、各Skillが「どこから読むか」で揺れます
+2. **真実の源の一意性**：複数ファイルに状態を分けると、Skillが古いデータを読むリスクが出ます
 
-具体的なフィールド設計はワークフローによるが、最低限以下は必要だ：
+具体的なフィールド設計はワークフローによりますが、最低限以下は必要です。
 
 ```json
 {
@@ -195,12 +196,12 @@ Loop:
 ```
 
 - `stage` は次に実行するSkillを決定する単一フィールド
-- `history` は監査用。各Skillはここに自分の実行結果を追記する
-- パスは絶対パスではなく **相対パス**（リポジトリのどこからでも参照できる）
+- `history` は監査用で、各Skillはここに自分の実行結果を追記します
+- パスは絶対パスではなく **相対パス**（リポジトリのどこからでも参照できます）
 
 ## 3層責務分離：決定論的スクリプト × SKILL.md × AI判断
 
-オーケストレーションの実装で最も効果が大きいのが **「どこに何を書くか」の責務分離** だ。playparkの実装例[^playpark]を参考に整理すると次のようになる。
+オーケストレーションの実装で最も効果が大きいのが **「どこに何を書くか」の責務分離** です。playparkの実装例[^playpark]を参考に整理すると次のようになります。
 
 [^playpark]: [【Claude Code】Skillオーケストレーション設計 - 複数Skillを連携させる実践パターン - playpark](https://www.playpark.co.jp/blog/claude-code-skill-orchestration)
 
@@ -210,13 +211,13 @@ Loop:
 | 第2層 | **条件分岐ロジック** | SKILL.md | 「stage が X ならこのSkillを呼ぶ」 |
 | 第3層 | **AI判断** | SKILL.md内の指示 | 切り口提案、記事生成、コードレビュー |
 
-第1層をスクリプトに押し出すメリットは大きい：
+第1層をスクリプトに押し出すメリットは大きいです。
 
-- **トークン消費ゼロ**でmillisecond単位で完了する
-- 何度実行しても同じ結果になる（再現性）
-- デバッグが容易（普通のシェルスクリプトとして単独実行できる）
+- **トークン消費ゼロ**でmillisecond単位で完了します
+- 何度実行しても同じ結果になります（再現性）
+- デバッグが容易です（普通のシェルスクリプトとして単独実行できます）
 
-具体的な分割例：
+具体的な分割例は次の通りです。
 
 ```bash
 # scripts/init-state.sh （決定論的層）
@@ -242,37 +243,37 @@ EOF
 echo "${STATE_DIR}/state.json"
 ```
 
-SKILL.md側ではこれを **動的コンテキスト注入** で取り込む：
+SKILL.md側ではこれを **動的コンテキスト注入** で取り込みます。
 
 ```yaml
 ---
 name: blog-publish
-description: Research, draft, and publish a blog article end-to-end.
+description: ブログ記事のリサーチから公開までを一気通貫で実行する。
 disable-model-invocation: true
 allowed-tools: Bash(jq:*) Read Write Edit
 ---
 
-## Current state
+## 現在の状態
 !`bash ${CLAUDE_SKILL_DIR}/scripts/init-state.sh "$ARGUMENTS"`
 
-## Instructions
-Read the state file printed above with `jq`. Based on `.stage`, invoke the next skill...
+## 指示
+上に出力された状態ファイルを `jq` で読み込む。`.stage` の値に応じて次のスキルを呼び出す...
 ```
 
-`` !`cmd` `` 構文は**Claudeに渡る前に**シェルでコマンドを実行し、その出力をプロンプトに差し込む[^code-docs]。Claudeが実行するのではなく、事前展開だ。これを使うと第1層の結果を第3層のAIに自然に渡せる。
+`` !`cmd` `` 構文は **Claudeに渡る前に** シェルでコマンドを実行し、その出力をプロンプトに差し込みます[^code-docs]。Claudeが実行するのではなく、事前展開という点がポイントです。これを使うと第1層の結果を第3層のAIに自然に渡せます。
 
-`${CLAUDE_SKILL_DIR}` はSkillが置かれたディレクトリへの絶対パスに展開される変数で、これを使うとSkillが personal / project / plugin のどこに置かれても同じスクリプトを参照できる。
+`${CLAUDE_SKILL_DIR}` はSkillが置かれたディレクトリへの絶対パスに展開される変数で、これを使うとSkillが personal / project / plugin のどこに置かれても同じスクリプトを参照できます。
 
 ## Skillライフサイクルに紐づくhooks
 
-Claude Code はSkillのフロントマター内で hooks を定義できる[^hooks-docs]。これは **そのSkillが有効な間だけ**フックが効く、というスコープが付くのが特徴。
+Claude Code はSkillのフロントマター内で hooks を定義できます[^hooks-docs]。これは **そのSkillが有効な間だけ** フックが効く、というスコープが付くのが特徴です。
 
 [^hooks-docs]: [Hooks reference - Claude Code Docs](https://code.claude.com/docs/en/hooks)
 
 ```yaml
 ---
 name: secure-operations
-description: Perform operations with security checks.
+description: セキュリティチェック付きで操作を実行する。
 hooks:
   PreToolUse:
     - matcher: "Bash"
@@ -283,26 +284,26 @@ hooks:
 ---
 ```
 
-`once: true` は **Skillフロントマター限定** のフィールドで、settings.json や agent frontmatter では無視される。1セッション中に最初の `Bash` 実行直前で1回だけセキュリティチェックが走り、以降は走らない。
+`once: true` は **Skillフロントマター限定** のフィールドで、settings.json や agent frontmatter では無視されます。1セッション中に最初の `Bash` 実行直前で1回だけセキュリティチェックが走り、以降は走りません。
 
-オーケストレーションでの使い所：
+オーケストレーションでの使い所は次の通りです。
 
-- **ガード**：危険なSkillを呼ぶ前に `PreToolUse` でガードする
-- **計測**：`PostToolUse` で各Skillの実行ログを集約する
-- **状態同期**：`Stop`（サブエージェントなら自動で `SubagentStop` に変換）で状態ファイルを永続化
+- **ガード**：危険なSkillを呼ぶ前に `PreToolUse` でガードします
+- **計測**：`PostToolUse` で各Skillの実行ログを集約します
+- **状態同期**：`Stop`（サブエージェントなら自動で `SubagentStop` に変換されます）で状態ファイルを永続化します
 
 ## Agent Teams との混同に注意
 
-Claude Codeには「Skillsのオーケストレーション」とは別に **Agent Teams** という機能がある。これは複数のClaude Codeインスタンスを協調させる仕組みで、現状（2026年5月時点）は **experimental** で GA未達。利用には：
+Claude Codeには「Skillsのオーケストレーション」とは別に **Agent Teams** という機能があります。これは複数のClaude Codeインスタンスを協調させる仕組みで、現状（2026年5月時点）は **experimental** で GA未達です。利用には次の条件が必要です[^agent-teams]。
 
 - Claude Code **v2.1.32 以上**
 - `settings.json` または環境変数で `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`
 
-が必要[^agent-teams]。既知の制限として session resumption / task coordination / shutdown behavior に課題がある段階。
+既知の制限として session resumption / task coordination / shutdown behavior に課題がある段階です。
 
 [^agent-teams]: [Orchestrate teams of Claude Code sessions - Claude Code Docs](https://code.claude.com/docs/en/agent-teams)
 
-**Skillsオーケストレーション** と **Agent Teams** は別レイヤーで、混同するとアーキテクチャ設計を誤る：
+**Skillsオーケストレーション** と **Agent Teams** は別レイヤーで、混同するとアーキテクチャ設計を誤ります。
 
 | | Skillsオーケストレーション | Agent Teams |
 |---|---|---|
@@ -311,27 +312,27 @@ Claude Codeには「Skillsのオーケストレーション」とは別に **Age
 | 安定度 | GA | Experimental |
 | 用途 | 単一セッション内のワークフロー | 複数インスタンスの分散実行 |
 
-本記事で扱うのは前者。後者は安定化を待ってから手を出した方がよい。
+本記事で扱うのは前者です。後者は安定化を待ってから手を出す方が無難でしょう。
 
 ## アンチパターン集
 
-実装で踏みがちな落とし穴を3つ。
+実装で踏みがちな落とし穴を3つご紹介します。
 
 ### アンチパターン1: 全処理をSKILL.mdに書く
 
-LLMにすべてやらせると、毎回挙動が微妙に違う、トークンが膨大、デバッグ困難という三重苦になる。決定論的に書ける部分（パス計算、日付計算、JSON読み書き、git操作）はすべてスクリプトに追い出す。
+LLMにすべてやらせると、毎回挙動が微妙に違う、トークンが膨大、デバッグ困難という三重苦になります。決定論的に書ける部分（パス計算、日付計算、JSON読み書き、git操作）はすべてスクリプトに追い出しましょう。
 
 ### アンチパターン2: フェーズ間の依存関係を明示しない
 
-`/draft-article` → `/create-thumbnail` のように依存があるのに、それを書かないと、前段が失敗してもエラー判定せず後段が走る。状態ファイルに `previous_stage_success: true` のような明示的なフラグを必ず置く。
+`/draft-article` → `/create-thumbnail` のように依存があるのに、それを書かないと、前段が失敗してもエラー判定せず後段が走ってしまいます。状態ファイルに `previous_stage_success: true` のような明示的なフラグを必ず置きましょう。
 
 ### アンチパターン3: 状態管理をサボる
 
-途中で停止したときに最初からやり直しになる、または重複生成される。状態ファイルを必ず先頭で読み、各Skillの実行完了時に書き戻す。
+途中で停止したときに最初からやり直しになる、または重複生成されることがあります。状態ファイルを必ず先頭で読み、各Skillの実行完了時に書き戻しましょう。
 
 ## このリポジトリでの実例
 
-参考までに、本記事自体が `/research-topic` → `/publish-article` の2段Skillで書かれている。構成は以下：
+参考までに、本記事自体が `/research-topic` → `/publish-article` の2段Skillで書かれています。構成は以下の通りです。
 
 ```
 .claude/skills/
@@ -341,23 +342,23 @@ LLMにすべてやらせると、毎回挙動が微妙に違う、トークン�
     └── SKILL.md         # 企画→ブランチ作成→執筆→PR→マージ
 ```
 
-ユーザーが `/research-topic スキルをオーケストレーションする方法` を実行すると、リサーチレポート（一次ソースURL、フック候補、未検証項目）が生成される。続いて `/publish-article スキルをオーケストレーションする方法` を呼ぶと、リサーチ結果を引き継いで記事化に入る。
+ユーザーが `/research-topic スキルをオーケストレーションする方法` を実行すると、リサーチレポート（一次ソースURL、フック候補、未検証項目）が生成されます。続いて `/publish-article スキルをオーケストレーションする方法` を呼ぶと、リサーチ結果を引き継いで記事化に入ります。
 
-現状の構成では状態ファイルは持っておらず、Claudeが会話文脈で2つのSkillを橋渡ししているが、将来 `seed/<slug>/state.json` を導入すれば「リサーチ済みのトピックを記事化する」「途中停止から再開する」が容易になる予定だ。
+現状の構成では状態ファイルは持っておらず、Claudeが会話文脈で2つのSkillを橋渡ししていますが、将来 `seed/<slug>/state.json` を導入すれば「リサーチ済みのトピックを記事化する」「途中停止から再開する」といった運用が容易になる予定です。
 
 ## まとめ
 
-Claude Code のSkillsは、最初から **複数を組み合わせて使う** ことが前提の「composable resources」として設計されている。オーケストレーションを実装するときの設計指針をまとめると：
+Claude Code のSkillsは、最初から **複数を組み合わせて使う** ことが前提の「composable resources」として設計されています。オーケストレーションを実装するときの設計指針をまとめると、次のようになります。
 
 1. **「how → Skill / access → MCP」** の使い分けを徹底する
-2. **オープン標準フィールドとClaude Code拡張を区別する**（移植性に関わる）
+2. **オープン標準フィールドとClaude Code拡張を区別する**（移植性に関わります）
 3. **4つの連携パターン**（Sequential / Parallel / Conditional / Iterative）から適切なものを選ぶ
 4. **状態はJSONファイル1つ** に集約する
 5. **3層責務分離**（決定論的スクリプト / 条件分岐SKILL.md / AI判断）でレイヤーを切る
-6. **`context: fork` + `hooks` + 動的コンテキスト注入**を組み合わせてオーケストレーションを実装する
-7. **Agent Teams とは別レイヤー**であることを忘れない
+6. **`context: fork` + `hooks` + 動的コンテキスト注入** を組み合わせてオーケストレーションを実装する
+7. **Agent Teams とは別レイヤー** であることを忘れない
 
-Skillを単体で書き始めると、すぐに「複数のSkillをどう連鎖させるか」という課題に直面する。最初から状態ファイルと orchestrator slash command を含めて設計しておくと、後から書き直す手間が大幅に減る。
+Skillを単体で書き始めると、すぐに「複数のSkillをどう連鎖させるか」という課題に直面します。最初から状態ファイルと orchestrator slash command を含めて設計しておくと、後から書き直す手間が大幅に減らせるでしょう。
 
 ## 参考リンク
 
