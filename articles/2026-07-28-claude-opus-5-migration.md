@@ -8,7 +8,9 @@ published: true
 
 ## はじめに
 
-2026年7月24日に Claude Opus 5 が公開されました。価格は Opus 4.8 と同じ $5 / $25（100万トークンあたりの入力 / 出力）に据え置かれ、コンテキストは 1M トークンになりました。
+2026年7月24日に Claude Opus 5 が公開されました。価格は Opus 4.8 と同じ $5 / $25（100万トークンあたりの入力 / 出力）に据え置かれています。
+
+先に誤解しやすい点を潰しておくと、**1M トークンのコンテキストは Opus 5 の新要素ではありません**。Opus 4.8 も 4.7 も 4.6 も、Sonnet 5 / 4.6 もすでに 1M です。最大出力 128k も価格も 4.8 と同じで、スペック表を並べても差がほとんど出ません。
 
 ベンチマークの数字はすでに各所で紹介されています。この記事で扱いたいのはその先です。**Opus 5 への移行作業の本体は、プロンプトに何かを足すことではなく、4.8 時代に書いた指示を消すことでした。**
 
@@ -29,13 +31,19 @@ published: true
 | 項目 | Claude Opus 5 | Claude Opus 4.8 |
 |---|---|---|
 | API モデルID | `claude-opus-5` | `claude-opus-4-8` |
-| コンテキスト | 1M トークン | — |
-| 最大出力 | 128k トークン | — |
-| 価格（入力 / 出力） | $5 / $25 | $5 / $25 |
-| thinking | デフォルトON | デフォルトOFF |
-| effort | low / medium / high / xhigh / max | low / medium / high / xhigh / max |
+| コンテキスト | 1M トークン | **1M トークン（同じ）** |
+| 最大出力 | 128k トークン | **128k トークン（同じ）** |
+| 価格（入力 / 出力） | $5 / $25 | **$5 / $25（同じ）** |
+| adaptive thinking | あり | **あり（同じ）** |
+| effort の段階 | low / medium / high / xhigh / max | **同じ** |
+| **thinking のデフォルト** | **ON** | OFF |
+| **知識カットオフ** | **2026年5月** | 2026年1月 |
 
-1M トークンというコンテキスト長は**デフォルトかつ最大**で、これより小さいバリアントは存在しません。「長いコンテキスト版だけ別料金・別モデルID」という以前のような使い分けは不要になっています。
+ハードウェア的なスペックはほぼ据え置きです。1M トークンのコンテキストは Opus 4.6 / 4.7 / 4.8、Sonnet 4.6 / 5 でも同じで、**beta ヘッダは不要、課金も標準価格**です。200k に留まっているのは Sonnet 4.5 や Haiku 4.5 といった旧世代のほうです。
+
+Opus 5 のドキュメントには「1M がデフォルトかつ最大で、これより小さいコンテキストのバリアントは存在しない」と書かれていますが、これは 4.8 からの変更点ではなく仕様の確認です。**「Opus 5 で 1M になった」と紹介している記事を見かけたら疑ってください。**
+
+したがって移行で見るべきは、スペック表に出てこない thinking のデフォルト、effort の推奨、そして挙動の変化になります。
 
 Fast mode は $10 / $50 で、Claude API のみの提供です。Amazon Bedrock / Google Cloud / Microsoft Foundry では現時点で使えません。
 
@@ -325,7 +333,7 @@ effort スイープの結果です（Opus 5、検証指示なし、各3回）。
 
 ## まとめ
 
-Claude Opus 5 は価格据え置きで 1M コンテキストになり、破壊的変更は「thinking がデフォルトON」と「`xhigh` / `max` では thinking を切れない」の2点です。
+Claude Opus 5 のスペックは Opus 4.8 とほぼ同じです。価格も、1M コンテキストも、128k の最大出力も据え置きで、破壊的変更は「thinking がデフォルトON」と「`xhigh` / `max` では thinking を切れない」の2点に絞られます。
 
 ただし移行作業の重心はそこではありませんでした。4.8 時代に良かれと思って書いた検証指示・subagent 指示・effort 設定が、Opus 5 では素直に負債になります。実測では、検証指示を残したまま移行すると **ツール呼び出しが約2.2倍、出力トークンが約1.4倍、実時間が4倍前後に増えて、テスト通過数は1点も変わりません**でした。しかも同じ指示を Opus 4.8 に与えた場合、トークンの増加は誤差の範囲に収まります。この浪費は Opus 5 固有のものです。
 
@@ -337,3 +345,5 @@ Claude Opus 5 は価格据え置きで 1M コンテキストになり、破壊�
 - [What's new in Claude Opus 5](https://platform.claude.com/docs/en/about-claude/models/whats-new-opus-5) — API変更・新機能・移行手順
 - [Prompting Claude Opus 5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5) — 挙動差分と推奨プロンプト
 - [Effort](https://platform.claude.com/docs/en/build-with-claude/effort) — effort の段階と各モデルの推奨
+- [Models overview](https://platform.claude.com/docs/en/about-claude/models/overview) — 全モデルのスペック比較表（legacy models に Opus 4.8 の値あり）
+- [Context windows](https://platform.claude.com/docs/en/build-with-claude/context-windows) — 1M コンテキスト対応モデルの一覧と課金の扱い
