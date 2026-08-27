@@ -99,7 +99,7 @@ agent = Agent(hooks=[ツール実行前の検証])
 
 つまり、AWSのエージェント提供形態は次の二層構造になっています。
 
-```
+```text
 ┌─────────────────────────────────────────────┐
 │ Amazon Bedrock AgentCore Harness（マネージド層）│
 │ 設定だけでエージェントを定義・実行               │
@@ -124,32 +124,38 @@ AgentCore Runtime 側も Strands のデプロイ先として公式ドキュメ�
 言葉だけでは実態が掴みにくいので、実際にインストールして中身を確認しました。
 
 ```bash
-pip install strands-agents strands-agents-tools
+pip install strands-agents==1.53.0 strands-agents-tools==0.8.6
 ```
 
-検証環境は Python SDK v1.53.0（2026年8月21日リリース）です。
+検証環境は Python SDK v1.53.0（2026年8月21日リリース）と、後述するコミュニティツールパッケージ v0.8.6 です。後者は別パッケージなので、以下の個数を再現する場合はバージョンを固定してください。
 
 ### モデルプロバイダ: 12種を同梱、AWS専用ではない
 
 `strands.models` パッケージには以下のプロバイダモジュールが同梱されていることを確認しました。
 
-```
+```text
 anthropic, bedrock, gemini, litellm, llamaapi, llamacpp,
 mistral, ollama, openai, openai_responses, sagemaker, writer
 ```
 
 デフォルトは Amazon Bedrock ですが、Anthropic・OpenAI・Gemini の直接利用から、Ollama や llama.cpp によるローカル実行まで揃っています。「AWSが作ったからAWS専用」ではなく、モデルとクラウドを差し替えてもエージェントコードが変わらないことが、公式の言う「Any model, any cloud」の実体です。
 
-### 標準ツール: 49個を実測
+### コミュニティツール: 49個を実測
 
-別パッケージ `strands-agents-tools` には49個のツールモジュールが含まれていました。一部を挙げると次のとおりです。
+ここは注意が必要な点です。`strands-agents-tools` は **SDK本体に同梱された標準機能ではなく、別途インストールするオプションのパッケージ**です。公式ドキュメントは次のように位置づけています。
+
+> Strands offers an optional, community-supported tools package
+
+SDK本体が公式にメンテナンスする組み込みツールは「vended tools」と呼ばれ、こちらとは区別されています。またコミュニティツールパッケージは Python 専用で、TypeScript SDK からは利用できません。
+
+その `strands-agents-tools` v0.8.6 には49個のツールモジュールが含まれていました。一部を挙げると次のとおりです。
 
 - `browser` / `code_interpreter`: ブラウザ操作・コード実行
 - `a2a_client`: A2Aプロトコルで他のエージェントを呼び出し
 - `agent_core_memory`: AgentCore Memory との連携
 - `diagram` / `editor` / `calculator` / `current_time`: 汎用ユーティリティ
 
-ツールを自作しなくても、ある程度のエージェントは同梱ツールの組み合わせで構築できます。
+ツールを自作しなくても、ある程度のエージェントはこれらの組み合わせで構築できます。ただしコミュニティ提供である以上、エージェントの権限で実行されるコードとして、採用前に挙動を自分で監査する責任は利用者側にあります。
 
 ### マルチエージェント: Graph / Swarm をSDK本体に内蔵
 
@@ -179,14 +185,38 @@ GitHubのリリース履歴を確認すると、Python 1.0.0 が2025年7月15日
 | Harnessで始めたが要件が複雑化してきた | CLIエクスポートでStrandsコードに卒業 |
 | 決定的な実行パスが業務要件（監査等）で必須 | Strands の GraphBuilder、または LangGraph 等のグラフ駆動 |
 
-ポイントは、**この二層が対立ではなく連続している**ことです。マネージドで始めてもロックインで行き止まりにならず、OSSコードとして手元に引き出せる。逆にStrandsで書いたエージェントは AgentCore Runtime にそのままデプロイして、マイクロVM分離やマネージド認証の恩恵を受けられる。この「行き来できること」自体が、単体のフレームワーク比較では見えてこない Strands の価値だと言えます。
+ポイントは、**この二層が対立ではなく連続している**ことです。マネージドで始めてもロックインで行き止まりにならず、OSSコードとして手元に引き出せる。逆にStrandsで書いたエージェントも、後述するエントリーポイントのラップさえ行えば AgentCore Runtime に載せて、マイクロVM分離やマネージド認証の恩恵を受けられる。この「行き来できること」自体が、単体のフレームワーク比較では見えてこない Strands の価値だと言えます。
+
+### 補足: AgentCore Runtime へのデプロイに必要な変更
+
+「そのまま載る」と誤解しやすいので補足すると、AgentCore Runtime へのデプロイでは、エージェントのロジック自体は変えずに済むものの、**HTTPサーバーとしてのラッピングは必須**です。公式ガイドは2つの方法を示しています。
+
+1つ目は `bedrock-agentcore` SDK の `BedrockAgentCoreApp` でエントリーポイントを包む方法です。
+
+```python
+from bedrock_agentcore.runtime import BedrockAgentCoreApp
+from strands import Agent
+
+app = BedrockAgentCoreApp()
+agent = Agent()
+
+@app.entrypoint
+def invoke(payload):
+    # 既存のエージェント呼び出しはそのまま使えます
+    return agent(payload["prompt"]).message
+
+if __name__ == "__main__":
+    app.run()
+```
+
+2つ目は FastAPI などで自前のHTTPサーバーを立てる方法で、この場合は `POST /invocations`（エージェント呼び出し）と `GET /ping`（ヘルスチェック）の2エンドポイントの実装が必須になります。プラットフォームは linux/arm64、ポートは8080に固定されている点も注意が必要です。
 
 ## まとめ
 
 - Strands Agents は「モデル・ツール・プロンプト」の3要素でオーケストレーションをLLMに委ねる model-driven なOSSエージェントSDKで、Amazon Q Developer などAWS社内の本番利用が公表されています
 - リポジトリは `sdk-python` から `harness-sdk` に改名され、「数行で作れるSDK」から「実行系を端から端まで制御するハーネス」へ訴求が再ポジショニングされました
 - 2026年6月GAの Amazon Bedrock AgentCore Harness は Strands を基盤とする設定ベースのマネージド層で、CLI 1コマンドでStrandsコードにエクスポートする「卒業パス」を持ちます
-- 実機検証では、12種のモデルプロバイダ・49個の標準ツール・Graph/Swarm のマルチエージェントパターンがSDKに同梱されていることを確認しました
+- 実機検証では、12種のモデルプロバイダと Graph/Swarm のマルチエージェントパターンがSDK本体に同梱されていること、および別パッケージのコミュニティツールに49個のツールが揃っていることを確認しました
 - 「設定で始めて、コードに卒業する」二層構造の行き来のしやすさが、2026年時点の Strands の最大の価値です
 
 ## 参考リンク
@@ -196,3 +226,4 @@ GitHubのリリース履歴を確認すると、Python 1.0.0 が2025年7月15日
 - [Strands Agents 公式ドキュメント](https://strandsagents.com/)
 - [Amazon Bedrock AgentCore harness is now generally available（AWS Machine Learning Blog）](https://aws.amazon.com/blogs/machine-learning/amazon-bedrock-agentcore-harness-is-now-generally-available-go-from-idea-to-production-grade-agent-in-minutes/)
 - [Deploying Strands Agents to Amazon Bedrock AgentCore Runtime（公式デプロイガイド）](https://strandsagents.com/docs/user-guide/deploy/deploy_to_bedrock_agentcore/)
+- [Community Tools Package（公式ドキュメント）](https://strandsagents.com/docs/user-guide/concepts/tools/community-tools-package/)
