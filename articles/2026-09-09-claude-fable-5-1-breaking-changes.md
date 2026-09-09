@@ -10,9 +10,11 @@ published: true
 
 2026年9月1日、AnthropicがClaude Fable 5.1とClaude Mythos 5.1を発表しました。Fable 5が2026年6月9日でしたから、約3か月でのマイナーバージョンアップです。
 
-「5 → 5.1」という刻み方から想像されるのは、ベンチマークが数ポイント伸びた程度の穏当な更新です。実際、コンテキストウィンドウも最大出力もトークナイザも料金の単価も、Fable 5とまったく同じです。モデルIDを `claude-fable-5` から `claude-fable-5-1` に書き換えるだけで動きます。
+「5 → 5.1」という刻み方から想像されるのは、ベンチマークが数ポイント伸びた程度の穏当な更新です。実際、コンテキストウィンドウも最大出力もトークナイザも料金の単価も、Fable 5とまったく同じです。移行手順として公式が最初に挙げているのも、モデルIDを `claude-fable-5` から `claude-fable-5-1` に書き換えることだけです。
 
 ところが公式ドキュメントを読むと、そのモデルIDの書き換えの後ろに**3つの破壊的変更**が並んでいます。そのうち2つは、自分で `messages` 配列を組み立てているコードの設計前提を壊します。しかも1つは、**2026年8月31日以降に作成されたアカウントでは既定で強制**されます。
+
+つまり、実質的にモデルIDの差し替えだけで済むのは、履歴の一貫性をフレームワーク側で担保してくれるClaude Code、Claude Agent SDK、Claude Managed Agentsに乗っている場合です。Messages APIを直接叩いて `messages` を自前で組んでいるなら、`tool_choice` の制約、thinkingブロックの保持、履歴prefixの整合性の3点を確認する必要があります。
 
 この記事では、Fable 5と5.1の差分を「ベンチマークの数字」ではなく「エージェントハーネスの設計にとって何が変わったか」という観点で整理します。あわせて、単価据え置きのなかで唯一動いた価格——キャッシュ読み取りの1/4への値下げ——が持つ非対称性も見ていきます。
 
@@ -34,12 +36,18 @@ published: true
 | thinking | 常時ON（adaptiveのみ） | 常時ON（adaptiveのみ） |
 | effort | low / medium / high / xhigh / max | 同じ（API既定は `high`） |
 | 入力 / 出力単価 | $10 / $50 per MTok | $10 / $50 per MTok |
-| データ保持 | Covered Model（30日保持が必須） | 同じ |
+| データ保持 | Covered Model（原則30日保持、ZDRは原則不可） | 同じ |
 | Priority Tier | 対応 | **非対応** |
 
 トークナイザが同じというのは移行にとって地味に重要です。Opus 4.6以前から上がってくる場合は同じ文章でおよそ30%多いトークンになりますが、Fable 5からの移行ならトークン数の再計測は不要です。
 
 逆に、表のなかで唯一はっきり失うものがPriority Tierです。Fable 5でPriority Tierを使っていた場合、5.1に移ると使えなくなります。
+
+データ保持の条件もFable 5から変わりません。公式の記述は次のとおりです。
+
+> Claude Fable 5.1 and Claude Mythos 5.1 carry 30-day data retention and aren't available under zero data retention unless expressly authorized by Anthropic.
+
+30日保持が原則で、**Anthropicから明示的に承認を受けている場合を除き、ZDR（zero data retention）では利用できない**、という書き方です。Fable 5・Mythos 5と同じくCovered Model扱いなので、Fable 5がすでに動いている環境なら追加の対応は不要です。逆に、ZDRを理由にFable 5を導入できなかった組織にとって、5.1でその条件が緩んだわけではありません。
 
 ## ベンチマーク：伸びているのは「賢さ」より「持久力」
 
@@ -87,7 +95,7 @@ APIの既定も `high` です。
 
 `tool_choice` に `{"type": "any"}` または `{"type": "tool", "name": "..."}` を指定すると、`400 invalid_request_error` が返ります。エラーメッセージは公式ドキュメントに次のように記載されています。
 
-> ```
+> ```text
 > tool_choice: type "tool" and "any" are not supported for this model.
 > ```
 
@@ -178,7 +186,7 @@ thinkingブロックの `signature` には、そのブロックを生成した�
 
 **2026年8月31日以降に作成されたアカウントでは、既定で強制されます**。それ以前に作られたアカウントでは、APIは不一致を記録するものの、リクエストが `thinking.block_binding.prefix_mismatch_behavior` を明示的にセットしたときにだけ作動します。
 
-ここに罠があります。自分の組織が古ければ手元では何も起きませんが、**そのコードを他人が自分のAPIキーで動かすツールとして配布している場合、新しい組織のユーザーは自分より先に強制されます**。ライブラリやCLIを配っているなら、`prefix_mismatch_behavior` を明示的にセットした状態でテストしておく必要があります。
+ここに罠があります。自分のアカウントが古ければ手元では何も起きませんが、**そのコードを他人が自分のAPIキーで動かすツールとして配布している場合、新しいアカウントを使うユーザーは自分より先に強制されます**。ライブラリやCLIを配っているなら、`prefix_mismatch_behavior` を明示的にセットした状態でテストしておく必要があります。
 
 なお、Claude Code、claude.ai、Claude Managed Agents、Claude Agent SDKは、このprefixをフレームワーク側で保ってくれます。問題になるのは**`messages` 配列を自分で組み立てているコード**です。
 
@@ -308,7 +316,7 @@ gateway経由のセッションでは、エイリアス `fable` / `best` は当�
 そして**v2.1.260（2026-09-03）**、リリースから2日後です。
 
 > Fixed prompt caching on Claude Fable 5.1 not covering the context attached after tool results, so it was re-sent as uncached input on every tool-call turn
-
+>
 > Improved `/effort` on Claude Fable 5.1 so changing effort mid-session no longer invalidates the prompt cache
 
 1行目は、ツール結果の後ろに付く文脈がキャッシュ範囲に入っておらず、**ツール呼び出しのターンごとに未キャッシュ入力として再送されていた**という不具合の修正です。キャッシュミスがヒットの40倍になったモデルで、毎ツールターンにミスが発生していたわけです。
@@ -351,7 +359,7 @@ Fable 5からの移行で確認すべき点を、優先度順に整理します�
 - Claude Fable 5.1は2026年9月1日発表。コンテキスト1M、最大出力128K、トークナイザ、入出力単価のいずれもFable 5と同一です
 - ベンチマークの伸びは長時間・多段のエージェントタスクに集中しています。単発推論の伸びは限定的です。またFable 5は、いくつかの評価軸ではすでに半額のOpus 5に抜かれていました
 - 破壊的変更は3件。forced tool useの400、thinkingブロックのモデル束縛、履歴編集によるthinking無効化です。後者2つは自分で `messages` を組むコードの前提を壊します
-- 履歴編集チェックは**2026年8月31日以降に作成されたアカウントで既定で強制**されます。ツールを配布しているなら、自分の組織より先にユーザーが強制される点に注意が必要です
+- 履歴編集チェックは**2026年8月31日以降に作成されたアカウントで既定で強制**されます。ツールを配布しているなら、自分のアカウントより先にユーザーが強制される点に注意が必要です
 - 追加機能5件のうち2件（turn-scoped system message、per-message effort）は、破壊的変更の回避策であると同時にキャッシュ維持の道具です
 - キャッシュ読み取りは $1 → $0.25。恩恵は長いエージェントセッションに集中し、代わりにキャッシュミスの相対コストが10倍から40倍に上がりました
 - Claude Code自身、リリース2日後にキャッシュ範囲の不具合を修正しています。載せ替えたら実測で確認するのが安全です
