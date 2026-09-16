@@ -16,6 +16,8 @@ published: true
 
 想定読者は「React（あるいは SPA 一般）が今のプロジェクトには重すぎると感じているが、代替の全体像がつかめていない」Web エンジニアです。
 
+なお、このブログでは最近 Claude Code や AI エージェントの記事が続いていましたが、今回は久しぶりに AI そのものではなく Web アーキテクチャの話です。ただし、この分野が 2026 年に再評価されている背景には AI コーディングの普及が深く関わっているため、最後の節でその接点にも触れます。
+
 ## 共通する思想：JSON ではなく HTML を返す
 
 SPA では、サーバーは JSON を返し、クライアントの JavaScript がそれを DOM に変換します。状態（state）はブラウザ側に置かれ、その同期のために React や Vue のようなランタイムと、状態管理ライブラリが必要になります。
@@ -27,6 +29,24 @@ SPA では、サーバーは JSON を返し、クライアントの JavaScript �
 > — [hotwired.dev](https://hotwired.dev/)
 
 ポイントは「クライアントに状態を持たせない」という一点にあります。テンプレートはサーバー側に一本化され、フロントエンドのビルドパイプラインも最小化できます。
+
+### 用語の整理：SPA でも SSR でもなく「HDA」
+
+「HTML over the wire」は Hotwire が広めた、**通信内容**（JSON ではなく HTML を送る）に着目した呼び方です。一方、htmx 側はこのアーキテクチャ自体を **Hypermedia-Driven Application（HDA）** と名付けています。
+
+> The Hypermedia Driven Application (HDA) architecture is a new/old approach to building web applications. It combines the simplicity & flexibility of traditional Multi-Page Applications (MPAs) with the better user experience of Single-Page Applications (SPAs).
+>
+> — [Hypermedia-Driven Applications — htmx](https://htmx.org/essays/hypermedia-driven-applications/)
+
+同エッセイは MPA を thesis、SPA を antithesis、HDA を synthesis と位置づけています。SPA / MPA は「ページ遷移の単位」、SSR / CSR は「HTML をどこで描画するか」の分類であり、HDA はそのどちらとも軸が違います。「htmx は SSR です」は誤りではないものの、SSR は初回描画の場所しか表さないため、「以降のやり取りも HTML で行う」という本質を取りこぼします。
+
+理論的な背景は REST の HATEOAS（Hypermedia As The Engine of Application State）で、同エッセイは次のように述べています。
+
+> HDAs continue to use Hypermedia As The Engine of Application State (HATEOAS), whereas most SPAs abandon HATEOAS in favor of a client-side model and data (rather than hypermedia) APIs.
+>
+> — [Hypermedia-Driven Applications — htmx](https://htmx.org/essays/hypermedia-driven-applications/)
+
+本記事では横断的な総称として「HTML over the wire」を使いますが、htmx の文脈で HDA という語が出てきたら同じものを指していると読んでください。
 
 ただし、「クライアントが持たない状態をどこで持つか」で 2 つの流派に分かれ、さらにその周辺に「思想は近いが HTML は送らない」隣接領域があります。それが以下の 3 系統です。
 
@@ -180,6 +200,7 @@ React を使わない、という選択は「古い作り方に戻る」こと�
 - [htmx.org](https://htmx.org/)
 - [The fetch()ening — htmx](https://htmx.org/essays/the-fetchening/)
 - [Hotwire / Turbo → htmx Migration Guide](https://htmx.org/migration-guide-hotwire-turbo/)
+- [Hypermedia-Driven Applications — htmx](https://htmx.org/essays/hypermedia-driven-applications/)
 - [Code is Cheap(er) — htmx](https://htmx.org/essays/code-is-cheap/)
 - [Hypermedia Friendly MCP App Architecture — htmx](https://htmx.org/essays/mcp-apps-hypermedia/)
 - [Datastar Getting Started](https://data-star.dev/guide/getting_started)
