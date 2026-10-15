@@ -91,7 +91,7 @@ TypeScript を使う場合は、Chrome のドキュメントで紹介されて�
 
 ### エンドポイントは存在しない
 
-WebMCP には URL もプロトコルもありません。ツールは**ユーザーのブラウザで開いているタブの中**にだけ存在し、呼び出せるのはそのブラウザに組み込まれたエージェント（またはページ内のエージェント）だけです。
+WebMCP には URL もプロトコルもありません。ツールは**ユーザーのブラウザで開いているタブの中**にだけ存在し、呼び出せるのは、そのブラウザに組み込まれたエージェントや拡張機能、ページ内のエージェントなど、**そのタブにアクセスできるもの**だけです（後述する Chrome DevTools MCP 経由で、ローカルの Claude Code から呼ぶこともできます）。
 
 そのため、次のような使い方はできません。
 
@@ -147,7 +147,7 @@ Chrome では、Origin Trial のトークンをページに設定するか、ロ
 | | REST / OpenAPI | MCP サーバー | WebMCP |
 |---|---|---|---|
 | 動く場所 | サーバー | サーバー / ローカルプロセス | ユーザーのブラウザのタブ内 |
-| 呼び出し元 | 任意のクライアント | AI プラットフォーム | そのブラウザのエージェントだけ |
+| 呼び出し元 | 任意のクライアント | AI プラットフォーム | そのタブにアクセスできるエージェント |
 | 認証 | API キー・OAuth を別途用意 | 同左 | ログイン済みのセッションをそのまま使う |
 | 画面との同期 | なし | なし（裏で状態が変わる） | ツール実行と画面更新が同じコード |
 | 新しいサーバー | 必要 | 必要 | 不要（フロントの JS を再利用） |
@@ -164,22 +164,114 @@ Chrome のドキュメントも、MCP との関係を次のように説明して
 
 ### WebMCP のメリット
 
-explainer は、MCP や OpenAPI のようなバックエンド連携の課題として「UI を素通りして文脈が失われる」「状態と認証を別のサーバーに作り直す必要がある」「専用のバックエンドを書く負担」の 3 つを挙げています。WebMCP のメリットはその裏返しです。
+explainer は、MCP や OpenAPI のようなバックエンド連携の課題として「UI を素通りして文脈が失われる」「状態と認証を別のサーバーに作り直す必要がある」「専用のバックエンドを書く負担」の 3 つを挙げています。WebMCP のメリットはその裏返しです。さらに、ツールがエージェントを限定しないという特徴もあります。
 
-1. **認証や状態を作り直さなくてよい**
+1. **一度書いたツールを、複数のエージェントで使い回せる**
+   仕様はツールを呼ぶエージェントを限定していません。同じ `registerTool` のツールを、ブラウザ内蔵のエージェント（Chrome、ChatGPT Desktop など）、拡張機能のエージェント、ページ内の bot、そして後述する方法でローカルの Claude Code からも呼べます。REST API の場合は、エージェントごとに MCP サーバーや Actions と認証を用意する必要があります。WebMCP ではフロントの JS を 1 回書くだけで、ログイン中のセッションのまま各エージェントから使えます。
+
+2. **認証や状態を作り直さなくてよい**
    エージェント用に OAuth のクライアントを用意したり、ユーザーが今見ている画面の文脈をサーバー側で再現したりする必要がありません。ログイン中のセッションがそのまま使われます。
 
-2. **画面とずれない**
+3. **画面とずれない**
    バックエンドの MCP でカートに商品を追加すると、サーバーの状態は変わっても、ユーザーが見ている画面は古いままです。explainer の図にも「バックエンドの状態が、見えている画面と食い違う可能性がある」と書かれています。WebMCP ではサイト自身のコードが処理と画面更新を一緒に行います。
 
-3. **ユーザーが見ながら任せられる**
+4. **ユーザーが見ながら任せられる**
    explainer の最初の Goal は human-in-the-loop です。エージェントが操作した結果が画面にそのまま出るので、ユーザーは途中で確認・修正できます。決済のような重要な操作は、最後のボタンだけユーザーに押してもらう設計にできます。
 
-4. **画面操作の自動化より速く、壊れにくい**
+5. **画面操作の自動化より速く、壊れにくい**
    スクリーンショットや DOM を読み取ってクリックを再現する方式は、デザインが変わると壊れます。WebMCP では型付きの関数呼び出しになります。
 
-5. **追加の実装が少ない**
+6. **追加の実装が少ない**
    既存の UI ロジックや REST 呼び出しを `execute` で包むだけで済みます。
+
+## ローカルの Claude Code から同じツールを呼ぶ（動作確認）
+
+「複数のエージェントで使い回せる」を実際に確かめるため、Google 公式の [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp) を使って、ローカルの MCP クライアントから Web ページの WebMCP ツールを呼んでみました。
+
+### Chrome DevTools MCP の WebMCP ツール
+
+Chrome DevTools MCP（v1.10.1）には、WebMCP 用のツールが 2 つあります。
+
+| ツール | 役割 |
+|---|---|
+| `list_webmcp_tools` | ページが公開している WebMCP ツールの一覧を取得する |
+| `execute_webmcp_tool` | `toolName` と JSON 文字列の `input` を渡してツールを実行する |
+
+WebMCP のカテゴリは既定では無効なので、`--categoryExperimentalWebmcp=true` を付けて起動します。また、Chrome 側でも WebMCP を有効にする必要があります。CLI のヘルプには「Chrome 150 以降で `--enable-features=WebMCP` フラグが必要」と書かれているので、`--chromeArg` で Chrome の起動引数として渡します。
+
+Claude Code に登録する場合のコマンドは次のとおりです。
+
+```bash
+claude mcp add chrome-devtools -- npx -y chrome-devtools-mcp@latest --categoryExperimentalWebmcp=true --chromeArg=--enable-features=WebMCP
+```
+
+### 検証の手順
+
+前半のコード例とほぼ同じ `get_cart`（読み取り専用）と `add_to_cart` の 2 つのツールを登録したページを `http://localhost:8765/` で配信しました。そのうえで、MCP SDK のクライアント（`@modelcontextprotocol/sdk`）から Chrome DevTools MCP を stdio で起動し、Claude Code がツールを呼ぶときと同じ MCP のリクエストを送りました。
+
+:::message
+今回は手元の Claude Code の CLI の認証が切れていたため、Claude Code 本体ではなく MCP SDK のクライアントで呼び出しています。MCP サーバーとのやりとりは同じなので、Claude Code に登録すれば同じツールが使えるはずですが、Claude Code 本体での確認はしていません。
+:::
+
+```js
+// 検証用クライアント（抜粋）
+const transport = new StdioClientTransport({
+  command: 'npx',
+  args: ['-y', 'chrome-devtools-mcp@latest', '--headless', '--isolated',
+    '--categoryExperimentalWebmcp=true', '--chromeArg=--enable-features=WebMCP'],
+});
+await client.connect(transport);
+
+await client.callTool({ name: 'navigate_page', arguments: { pageId: 1, type: 'url', url: 'http://localhost:8765/' } });
+await client.callTool({ name: 'list_webmcp_tools', arguments: { pageId: 1 } });
+await client.callTool({
+  name: 'execute_webmcp_tool',
+  arguments: { pageId: 1, toolName: 'add_to_cart', input: JSON.stringify({ sku: 'SNK-001', quantity: 2 }) },
+});
+```
+
+### 結果
+
+Chrome 155（ヘッドレス）で、次の結果が返りました。
+
+`list_webmcp_tools` では、ページで登録した 2 つのツールが、日本語の description と inputSchema ごと取得できました。
+
+```text
+## WebMCP tools
+name="get_cart", description="現在のカートの中身を返します。", inputSchema={"type":"object","properties":{}}, annotations={"readOnly":true,"untrustedContent":false,"consequential":false}
+name="add_to_cart", description="指定した商品をカートに追加します。", inputSchema={...}, annotations=undefined
+```
+
+`execute_webmcp_tool` で `add_to_cart` を実行すると、ページの `execute` が動いて結果が返りました。
+
+```json
+{
+  "status": "Completed",
+  "output": "カートに SNK-001 を 2 個追加しました（合計 1 品目）"
+}
+```
+
+続けて `get_cart` を実行すると `[{"sku":"SNK-001","quantity":2}]` が返りました。さらに `evaluate_script` でページの DOM を確認すると、カートの表示が `SNK-001 × 2` に更新されていました。**MCP クライアントからツールを呼ぶと、ページ自身のコードが処理と画面更新の両方を行う**ことを確認できました。
+
+比較のため、`--chromeArg=--enable-features=WebMCP` を外して同じ手順を実行すると、`'modelContext' in document` が `false` になり、`list_webmcp_tools` は `No WebMCP tools available.` を返しました。Chrome 側で WebMCP を有効にする設定は必須です。
+
+### ハマりどころ
+
+- **`pageId` が必須です。** `navigate_page` や `evaluate_script` も含めて `pageId` を渡さないとバリデーションエラーになります。最初に `list_pages` でページ ID を確認します
+- **ツールが見つからないときは、まず Chrome のフラグを疑います。** フラグがないと API 自体が存在しないため、ページの `registerTool` で例外が出て、ツールは 1 つも登録されません
+- **`annotations` を省略すると `annotations=undefined` と表示されます。** 読み取り専用のツールには `readOnlyHint: true` を付けておくと、エージェント側から区別できます
+
+### 位置づけと注意点
+
+Chrome は、Chrome DevTools MCP 経由の WebMCP を**開発者がツールを検証・デバッグするための機能**と位置づけています（[Debug WebMCP tools with AI agents](https://developer.chrome.com/docs/devtools/agents/webmcp-debugging)）。紹介されている使い方は「ツールを実装して、正しく登録されたか確かめる」「ツールを実際に呼んでエラーが出ないか見る」「スキーマが曖昧で失敗する原因をレビューする」などです。
+
+そのため、次の点に注意してください。
+
+- **自分のサイトの WebMCP 対応を Claude Code で開発・テストする用途に、最も向いています。** ツールの実装 → 登録の確認 → 実行 → スキーマの改善までを、Claude Code の中で完結できます
+- **ブラウザのタブが必要なことは変わりません。** ブラウザを開かずに同じ処理を使いたい場合は、MCP サーバーを別に用意します
+- **ログイン中のブラウザに接続すると、Claude Code があなたの権限で Web アプリを操作します。** `consequentialHint` が付いたツールでユーザーの確認を挟むかどうかはクライアント次第なので、予約や送金のような副作用のあるツールは慎重に扱ってください
+
+なお、サードパーティの `@mcp-b/webmcp-local-relay` のように、サイトにスクリプトを埋め込んで localhost の WebSocket 経由でローカルの MCP クライアントにツールを中継するパッケージもあります。こちらは今回は試していません。
 
 ## 利用ケース
 
@@ -299,7 +391,8 @@ explainer のベストプラクティスでは、登録したツールの name�
 
 - WebMCP は、開いているページが JavaScript の関数を「ツール」としてブラウザ内のエージェントに公開する Web API です
 - エンドポイントはなく、外部から呼べる Web サービスにはなりません。**REST API の代わりではなく、その上に載る層**です
-- メリットは、ログイン中のセッションをそのまま使えること、画面とずれないこと、ユーザーが見ながら任せられること、既存のフロントエンドのコードを再利用できることです
+- メリットは、一度書いたツールを複数のエージェントで使い回せること、ログイン中のセッションをそのまま使えること、画面とずれないこと、ユーザーが見ながら任せられること、既存のフロントエンドのコードを再利用できることです
+- Chrome DevTools MCP を使えば、ローカルの MCP クライアントからも同じツールを呼べることを Chrome 155 で確認しました。公式の位置づけは開発・デバッグ向けです
 - 向いているのは EC、長いフォーム、制作系アプリ、複雑な業務画面など、**ユーザーがログインした画面で、操作をエージェントに任せたい**場面です
 - 対応環境は Chrome・Edge の Origin Trial と ChatGPT Desktop が中心で、Safari（WebKit）は反対の立場です。API もまだ変わり続けています
 
@@ -316,5 +409,7 @@ explainer のベストプラクティスでは、登録したツールの name�
 - [Chrome for Developers: WebMCP tool security](https://developer.chrome.com/docs/ai/webmcp/secure-tools)
 - [WebMCP origin trial の告知（2026-06-09）](https://developer.chrome.com/blog/ai-webmcp-origin-trial)
 - [GoogleChromeLabs/webmcp-tools](https://github.com/GoogleChromeLabs/webmcp-tools)
+- [ChromeDevTools/chrome-devtools-mcp（tool-reference）](https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/tool-reference.md)
+- [Chrome for Developers: Debug WebMCP tools with AI agents](https://developer.chrome.com/docs/devtools/agents/webmcp-debugging)
 - [WebKit/standards-positions#670](https://github.com/WebKit/standards-positions/issues/670)
 - [mozilla/standards-positions#1412](https://github.com/mozilla/standards-positions/issues/1412)
