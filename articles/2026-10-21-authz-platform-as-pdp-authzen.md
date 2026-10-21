@@ -56,16 +56,22 @@ Google の認可基盤 Zanzibar の論文（[USENIX ATC '19](https://www.usenix.
 
 ## 責務を 2 つに分ける
 
-認可基盤を「トークンを発行する側」と「判定する側」に分けます。
+認可基盤を「トークンを発行する側」と「判定する側」に分けます。1 回の API リクエストの流れは次のとおりです。
 
 ```mermaid
-flowchart LR
-  U[ユーザー / クライアント] -- 認証・同意 --> AS[認可サーバー / IdP]
-  AS -- 短命・audience限定の<br/>アクセストークン --> U
-  U -- API リクエスト<br/>+ トークン --> PEP[API / PEP]
-  PEP -- AuthZEN<br/>subject / action / resource --> PDP[PDP<br/>OpenFGA / Cedar / OPA]
-  PDP -- decision: true/false --> PEP
-  App[業務イベント<br/>共有・招待・退職] -- 関係・属性の更新 --> PDP
+sequenceDiagram
+  participant C as クライアント
+  participant AS as 認可サーバー / IdP
+  participant PEP as API（PEP）
+  participant PDP as PDP（OpenFGA / Cedar / OPA）
+  C->>AS: 認証・同意
+  AS-->>C: 短命・audience 限定のアクセストークン
+  C->>PEP: API リクエスト + トークン
+  PEP->>PEP: トークン検証（署名・有効期限・audience）
+  PEP->>PDP: AuthZEN（subject / action / resource）
+  PDP-->>PEP: decision: true / false
+  PEP-->>C: 200 OK または 403 Forbidden
+  Note over PDP: 共有・招待・退職などの業務イベントで<br/>関係・属性を随時更新する
 ```
 
 | 観点 | 認可サーバー（AS）／IdP | PDP |
