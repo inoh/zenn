@@ -226,10 +226,10 @@ npm i @cedar-policy/cedar-wasm
 import * as cedar from '@cedar-policy/cedar-wasm/nodejs';
 
 // owners に含まれるグループのメンバーなら閲覧を許可する。
-// ただし機密文書は MFA なしでは常に拒否する（forbid は permit より優先）。
+// ただし機密文書は、MFA 済みと確認できない限り常に拒否する（forbid は permit より優先）。
 const policies = `
 permit(principal, action == Action::"view", resource) when { principal in resource.owners };
-forbid(principal, action, resource) when { resource.classification == "secret" && !context.mfa };
+forbid(principal, action, resource) when { resource.classification == "secret" && !(context has mfa && context.mfa) };
 `;
 
 const entities = [
@@ -240,30 +240,49 @@ const entities = [
     parents: [] },
 ];
 
-const check = (user, mfa) => cedar.isAuthorized({
+const check = (user, context) => cedar.isAuthorized({
   principal: { type: "User", id: user },
   action: { type: "Action", id: "view" },
   resource: { type: "Doc", id: "d1" },
-  context: { mfa },
+  context,
   policies: { staticPolicies: policies },
   entities,
 });
 
-for (const [user, mfa] of [["alice", true], ["alice", false], ["bob", true]]) {
-  const r = check(user, mfa);
-  console.log(user, `mfa=${mfa}`, r.response.decision, r.response.diagnostics.reason);
+for (const [user, context] of [
+  ["alice", { mfa: true }],
+  ["alice", { mfa: false }],
+  ["alice", {}],            // mfa を渡し忘れたケース
+  ["bob", { mfa: true }],
+]) {
+  const r = check(user, context);
+  console.log(user, JSON.stringify(context), r.response.decision, r.response.diagnostics.reason);
 }
 ```
 
 ```text
-alice mfa=true allow [ 'policy0' ]
-alice mfa=false deny [ 'policy1' ]
-bob mfa=true deny []
+alice {"mfa":true} allow [ 'policy0' ]
+alice {"mfa":false} deny [ 'policy1' ]
+alice {} deny [ 'policy1' ]
+bob {"mfa":true} deny []
 ```
 
 - alice は eng グループ経由で `permit`（policy0）に当たり、許可されます
 - 同じ alice でも MFA なしだと `forbid`（policy1）が優先され、拒否されます
+- `mfa` を渡し忘れた場合も、`forbid` に当たって拒否されます
 - どのポリシーにも当たらない bob は、**デフォルトで拒否**されます
+
+:::message alert
+**ハマりどころ: 評価エラーになった `forbid` は無視されます**
+
+最初は `forbid` の条件を `!context.mfa` と書いていました。この書き方だと、`context` に `mfa` が無いリクエストで次の結果になります。
+
+```text
+alice {} allow [ 'policy0' ]
+```
+
+このとき `diagnostics.errors` には「record does not have the attribute `mfa`」というエラーが入っていました。存在しない属性を参照したため `forbid` の評価がエラーになり、そのポリシーは判定から外されます。その結果、`permit` だけが残って**機密文書が許可されてしまいます**。`forbid` で使う属性は `has` で存在を確かめ、「確認できなければ拒否」になるように書きましょう。
+:::
 
 `diagnostics.reason` に、判定を決めたポリシーの ID が返ってくる点も重要です。OWASP の言う「適切なログ」に、そのまま判定理由を残せます。
 
@@ -321,14 +340,32 @@ curl -s -XPOST $B/stores/$S/access/v1/evaluation \
 {"code":"unimplemented","message":"AuthZEN endpoints are experimental. Enable with --experimentals=authzen"}
 ```
 
-**ハマりどころその 1**: AuthZEN は実験的機能のため、起動時にフラグが必要です。
+**ハマりどころその 1**: AuthZEN は実験的機能のため、起動時にフラグが必要です。いま動いているコンテナを止めて、フラグを付けて起動し直します。
 
 ```bash
+docker rm -f ofga-test
 docker run -d --rm --name ofga-test -p 18080:8080 \
   openfga/openfga:v1.22.0 run --experimentals=authzen
 ```
 
-フラグを付けて起動し直し、bob を design の viewer にするタプルだけを入れたストアで試すと、AuthZEN 形式の応答が返ってきます。
+Docker で `run` しただけの OpenFGA は、データをメモリに保存しています。再起動するとストア・モデル・タプルはすべて消えるので、作り直します。ここでは、bob を design の viewer にするタプルだけを入れた最小のモデルにしています。
+
+```bash
+S=$(curl -s -XPOST $B/stores -d '{"name":"demo"}' | jq -r .id)
+
+curl -s -XPOST $B/stores/$S/authorization-models -d '{
+ "schema_version":"1.1",
+ "type_definitions":[
+  {"type":"user"},
+  {"type":"document","relations":{"viewer":{"this":{}}},
+   "metadata":{"relations":{"viewer":{"directly_related_user_types":[{"type":"user"}]}}}}
+ ]}'
+
+curl -s -XPOST $B/stores/$S/write -d '{"writes":{"tuple_keys":[
+ {"user":"user:bob","relation":"viewer","object":"document:design"}]}}'
+```
+
+この状態で AuthZEN のリクエストを送ると、AuthZEN 形式の応答が返ってきます。
 
 ```bash
 for u in bob carol; do
