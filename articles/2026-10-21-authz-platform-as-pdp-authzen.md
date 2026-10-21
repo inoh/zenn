@@ -374,6 +374,152 @@ CHANGELOG によると、以前はリクエストの Host ヘッダからエン�
 
 上の例では `action.name` に OpenFGA のリレーション名（`viewer`）をそのまま渡しています。PDP を差し替えられるようにしたいなら、**PEP が送る action はアプリの業務用語（`document.read` など）に揃え、PDP 側でそれぞれの実装に対応付ける**ほうが安全です。PDP の内部モデル（リレーション名やポリシー ID）が PEP に漏れると、AuthZEN を使っていても結局は特定の PDP に縛られてしまいます。
 
+## Amazon Cognito で組む場合
+
+ここまでの設計を、AWS でよく使われる Amazon Cognito ユーザープールに当てはめてみます。Cognito は「認可サーバー（AS）／IdP」の役割をそのまま担えます。PDP には OpenFGA などを別に立てても、Cedar ベースの Amazon Verified Permissions を使っても構いません。
+
+:::message
+この節の内容は、2026 年 10 月 21 日時点の AWS 公式ドキュメントで確認したものです。実際の AWS 環境での動作検証は行っていません。
+:::
+
+### AS 側のチェック項目は Cognito で満たせる
+
+| 記事の推奨 | Cognito での実現方法 |
+|---|---|
+| audience を特定の API に限定する（RFC 8707） | **resource binding**。`/oauth2/authorize` に `resource` パラメータを付けると、アクセストークンの `aud` にその URL が入る |
+| スコープは粗い粒度にする | リソースサーバーとカスタムスコープ（例: `https://api.example.com/documents.read`） |
+| アクセストークンを短命にする | アプリクライアントごとに 5 分〜1 日の範囲で設定できる |
+
+resource binding には次の制約があります（[公式ドキュメント](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-define-resource-servers.html#cognito-user-pools-resource-binding)）。
+
+- managed login（Cognito の OAuth 2.0 エンドポイント）経由の認可コード／implicit grant でのみ使えます。`InitiateAuth` などの SDK 認証では使えません
+- client credentials（M2M）では使えません
+- 1 回のリクエストで指定できるリソースは 1 つです
+
+また、`InitiateAuth` / `AdminInitiateAuth` で取得したアクセストークンの `scope` は `aws.cognito.signin.user.admin` だけになり、カスタムスコープが入りません。自社 API の認可に使うなら、managed login 経由でトークンを取得するのが前提になります。
+
+アクセストークンの有効期限については、managed login を使う場合に注意があります。managed login のセッション Cookie は 1 時間有効なため、公式ドキュメントはアクセストークンや ID トークンの有効期限を 1 時間未満にしないよう案内しています。短くしても、ユーザーは 1 時間以内なら再認証なしで新しいトークンを取得できてしまうためです。
+
+### アクセストークンのペイロードは標準のままでよい
+
+公式ドキュメントのサンプルをもとに、resource binding を使った場合のアクセストークンのペイロードを示します（値は例です）。
+
+```json
+{
+  "sub": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "iss": "https://cognito-idp.ap-northeast-1.amazonaws.com/ap-northeast-1_EXAMPLE",
+  "client_id": "xxxxxxxxxxxxexample",
+  "aud": "https://api.example.com",
+  "token_use": "access",
+  "scope": "openid https://api.example.com/documents.read",
+  "cognito:groups": ["admin"],
+  "auth_time": 1676313851,
+  "iat": 1676313851,
+  "exp": 1676317451,
+  "jti": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "origin_jti": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "username": "my-test-user"
+}
+```
+
+| クレーム | 役割 | API（PEP）での扱い |
+|---|---|---|
+| `sub` | ユーザーの一意な ID | AuthZEN の `subject.id` に使う。公式も `sub` をユーザー識別に使うよう案内しており、`username` は一意とは限らない |
+| `iss` | 発行したユーザープール | 期待するユーザープールの URL と一致するか検証する |
+| `aud` | どの API 向けのトークンか | 自分の API の URL と一致するか検証する（resource binding を使ったときだけ入る） |
+| `token_use` | トークンの種類 | `access` であることを検証し、ID トークンを API で受け付けない |
+| `scope` | クライアントに委任した範囲 | 「ドキュメント API を読んでよいか」程度の粗い判定に使う |
+| `cognito:groups` | 所属するユーザープールグループ | 「管理者か」程度の粗い判定にだけ使う。使わなければ外してよい |
+| `exp` | 有効期限 | 署名（JWKS）とあわせて検証する |
+
+一方、プレトークン生成 Lambda を使うと、次のようなクレームを自由に足せてしまいます。
+
+```json
+{
+  "documents": { "design": "owner", "spec-2026": "viewer" },
+  "folders": ["specs", "internal"]
+}
+```
+
+これは本記事の冒頭で見た「トークンに認可を詰め込む」構成そのものです。共有を解除してもトークンの失効まで権限が残り、リソースが増えるほどトークンが肥大化します。**リソース単位の関係は PDP に持たせ、トークンには入れない**ようにしましょう。
+
+API 側の処理は次の順になります。
+
+1. JWT を検証する（署名、`iss`、`aud`、`token_use`、`exp`）。失敗したら 401
+2. `scope` を確認する。足りなければ 403
+3. `sub` を `subject.id` にして PDP に AuthZEN で問い合わせる。`decision: false` なら 403
+
+```json
+{
+  "subject":  { "type": "user", "id": "<sub の値>" },
+  "action":   { "name": "document.read" },
+  "resource": { "type": "document", "id": "design" }
+}
+```
+
+### Amazon Verified Permissions と組み合わせる場合
+
+PDP も AWS で揃えるなら、Amazon Verified Permissions が Cognito と直接連携します（[Identity sources](https://docs.aws.amazon.com/verifiedpermissions/latest/userguide/identity-sources.html)）。
+
+- Cognito ユーザープール（または任意の OIDC IdP）を **identity source** として登録すると、トークンをそのまま渡して判定できます
+- ID トークンのクレームは principal の属性に、アクセストークンのクレームは `context` に対応付けられます。どちらの場合も、グループのクレームを principal の所属グループとして扱えます
+- API Gateway を使っている場合は、**API-linked policy store** を作ると、Verified Permissions が Lambda オーソライザーを用意してくれます
+
+ただし、Verified Permissions は「IdP のトークンの情報を使って判定し、IdP とは直接やり取りしない」と明記しています。`cognito:groups` だけで判定すると、PDP を挟んでいても剥奪はトークンの失効まで反映されません。「誰がこのドキュメントの owner か」のようなリソース単位の情報は、アプリの DB からエンティティとして渡しましょう。
+
+また、Verified Permissions の判定 API は AWS 独自の `IsAuthorized` / `IsAuthorizedWithToken` です。本記事では AuthZEN への対応状況は確認していません。PEP を AuthZEN に揃えたい場合は、間に変換用のアダプタを置くか、AuthZEN に対応した PDP を選ぶことになります。
+
+## 外部に API を公開する場合（client credentials）
+
+ユーザーのログインを伴わず、取引先のサーバーなどに API の一部を公開する場合は、**client credentials グラント**が今も標準的な方式です。変わってきたのは、その周辺の守り方です。
+
+### 一次ソースが推奨する方向
+
+[RFC 9700](https://www.rfc-editor.org/rfc/rfc9700.html) は、クライアント認証に非対称暗号を使うことを推奨しています。
+
+> It is RECOMMENDED to use asymmetric cryptography for client authentication, such as mutual TLS for OAuth 2.0 [RFC8705] or signed JWTs ("Private Key JWT") in accordance with [RFC7521] and [RFC7523].
+
+共有シークレット（`client_secret`）と違い、認可サーバー側で漏えいしうる共有鍵を保存しなくて済むためです。RFC 9700 はさらに、アクセストークンを送信元に紐付けること（sender-constrained）と audience を限定することも、認可サーバーに求めています（SHOULD）。紐付けの方式として挙げられているのは、mTLS（[RFC 8705](https://www.rfc-editor.org/rfc/rfc8705.html)）と DPoP（[RFC 9449](https://www.rfc-editor.org/rfc/rfc9449.html)）です。
+
+金融グレードの API 向けの [FAPI 2.0 Security Profile](https://openid.net/specs/fapi-security-profile-2_0-final.html)（2025 年 2 月 Final）は、さらに踏み込んでいます。
+
+- クライアント認証は mTLS か `private_key_jwt` に限られ、`client_secret` は選択肢に含まれていません
+- アクセストークンは、mTLS か DPoP で送信元に紐付けたものしか発行しません
+
+まとめると、標準が目指しているのは **「client credentials ＋ 非対称鍵によるクライアント認証（`private_key_jwt` / mTLS）＋ 送信元に紐付けたトークン」** という形です。
+
+### Cognito の client credentials で取れる対策
+
+Cognito のトークンエンドポイントが対応しているクライアント認証は、`client_secret_basic` と `client_secret_post` です（[The token endpoint](https://docs.aws.amazon.com/cognito/latest/developerguide/token-endpoint.html)）。同ページには `private_key_jwt`、mTLS、DPoP の記載はありません。Cognito の範囲では、次の対策が現実的です。
+
+- **取引先ごとにアプリクライアントを分ける**: 漏えい時に止める範囲を最小にでき、PDP でも取引先ごとに判定できます
+- **シークレットを定期的にローテーションする**: アプリクライアントは有効なシークレットを最大 2 つ持てるため、新旧を並行させて無停止で切り替えられます
+- **アクセストークンを短命にする**
+- **スコープは粗い粒度にし、細かい認可は PDP で行う**
+
+M2M のアクセストークンでは、`sub` はユーザーではなくアプリクライアントの ID になり、`cognito:groups` や `username` は含まれません。PDP に問い合わせるときは、ユーザーと区別できるように `subject` の型を分けておきましょう。
+
+```json
+{
+  "subject":  { "type": "client", "id": "<client_id の値>" },
+  "action":   { "name": "order.create" },
+  "resource": { "type": "partner_account", "id": "acme" }
+}
+```
+
+また、前述のとおり M2M では resource binding が使えないため、トークンに `aud` が入りません。API 側では `iss`、`token_use`、`client_id`、`scope` を検証します。
+
+非対称鍵によるクライアント認証や、送信元に紐付けたトークンが必須の要件（金融系や、取引先からのセキュリティ要件など）がある場合は、それらに対応した認可サーバーを選ぶか、API の手前で mTLS を終端する構成を検討することになります。
+
+### ユーザーの代わりに呼ぶなら client credentials ではない
+
+「外部公開」でも、外部のアプリや AI エージェントが **自社サービスのユーザーの代わりに** API を呼ぶ場合は、ユーザーの同意が必要なので client credentials は使いません。認可コード ＋ PKCE を使います。MCP の Authorization 仕様もこの形です。
+
+| 呼び出し元 | 誰として呼ぶか | グラント |
+|---|---|---|
+| 取引先のバッチやサーバー | 取引先自身 | client credentials |
+| 連携アプリ、AI エージェント | 自社サービスのユーザー | 認可コード ＋ PKCE |
+
 ## 設計チェックリスト
 
 ここまでの内容を、認可基盤を作るときのチェックリストにまとめます。
@@ -385,6 +531,8 @@ CHANGELOG によると、以前はリクエストの Host ヘッダからエン�
 - [ ] PKCE を使い、リダイレクト URI を完全一致で照合している
 - [ ] implicit grant と ROPC を使っていない
 - [ ] public client の refresh token をローテーションまたは送信者制約で守っている
+- [ ] プレトークン生成 Lambda などで、リソース単位の権限をトークンに足していない
+- [ ] M2M のクライアントは取引先ごとに分け、シークレットをローテーションしている（可能なら `private_key_jwt` / mTLS）
 
 ### 判定（PDP）
 
@@ -419,6 +567,8 @@ AI エージェントからの API 呼び出しも同じ考え方で扱えます
 - 「この操作をしてよいか」は **PDP で毎リクエスト判定**します。OpenFGA では、関係を削除した直後の判定から拒否されることを確認できました
 - Cedar の `permit` / `forbid` とデフォルト拒否のように、PDP は判定理由も返せるため、ログやテストの仕組みも 1 か所にまとまります
 - **AuthZEN 1.0（2026 年 1 月 Final）** で PEP と PDP の間を標準化しておけば、PDP を差し替えられます。OpenFGA では `--experimentals=authzen` で試せますが、ストア ID 付きのパスと Discovery のベース URL 設定に注意してください
+- **Amazon Cognito** でもこの設計は組めます。resource binding で `aud` を入れ、ペイロードは標準のままにして、`sub` を AuthZEN の `subject` に渡します
+- 外部への API 公開は今も **client credentials** が基本ですが、標準は非対称鍵によるクライアント認証と送信元に紐付けたトークンに向かっています。Cognito ではクライアントの分離とシークレットのローテーションで補いましょう
 
 認可基盤は、一度アプリ中に if 文として散らばると、後から集約するのが大変です。新しくサービスを作るときや、IdP を導入するタイミングで、「トークンを発行する側」と「判定する側」を分けておくことをおすすめします。
 
@@ -435,3 +585,10 @@ AI エージェントからの API 呼び出しも同じ考え方で扱えます
 - [OpenFGA CHANGELOG](https://github.com/openfga/openfga/blob/main/CHANGELOG.md)
 - [Cedar: A New Language for Expressive, Fast, Safe, and Analyzable Authorization（arXiv:2403.04651）](https://arxiv.org/abs/2403.04651)
 - [Model Context Protocol — Authorization（2025-11-25）](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization)
+- [FAPI 2.0 Security Profile](https://openid.net/specs/fapi-security-profile-2_0-final.html)
+- [RFC 9449 — OAuth 2.0 Demonstrating Proof of Possession (DPoP)](https://www.rfc-editor.org/rfc/rfc9449.html)
+- [RFC 8705 — OAuth 2.0 Mutual-TLS Client Authentication and Certificate-Bound Access Tokens](https://www.rfc-editor.org/rfc/rfc8705.html)
+- [Amazon Cognito — Understanding the access token](https://docs.aws.amazon.com/cognito/latest/developerguide/amazon-cognito-user-pools-using-the-access-token.html)
+- [Amazon Cognito — Scopes, M2M, and resource servers](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-define-resource-servers.html)
+- [Amazon Cognito — The token endpoint](https://docs.aws.amazon.com/cognito/latest/developerguide/token-endpoint.html)
+- [Amazon Verified Permissions — Identity sources](https://docs.aws.amazon.com/verifiedpermissions/latest/userguide/identity-sources.html)
